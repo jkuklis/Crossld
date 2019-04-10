@@ -3,6 +3,7 @@
 #include <libelf.h>
 #include <sys/mman.h>
 #include <dlfcn.h>
+#include <elf.h>
 
 void printk(const char* msg)
 {
@@ -35,6 +36,7 @@ void *resolve(const char* sym)
 
 void relocate(Elf32_Shdr* shdr, const Elf32_Sym* syms, const char* strings, const char* src, char* dst)
 {
+//    return;
     Elf32_Rel* rel = (Elf32_Rel*)(src + shdr->sh_offset);
     int j;
     void* resolved;
@@ -45,7 +47,10 @@ void relocate(Elf32_Shdr* shdr, const Elf32_Sym* syms, const char* strings, cons
             case R_386_JMP_SLOT:
             case R_386_GLOB_DAT:
                 resolved = resolve(sym);
-                *(Elf32_Word*)(dst + rel[j].r_offset) =  (Elf32_Word)resolved;
+                resolved = (void*)0x12345;
+                Elf32_Word* toWhere = (Elf32_Word*)(dst + rel[j].r_offset);
+//                resolved = rel[j].r_offset;
+                *toWhere =  (Elf32_Word)resolved;
                 break;
             default:
 //                printf("%s\n", sym);
@@ -81,6 +86,8 @@ void *image_load (char *elf_start, unsigned int size)
     char            *taddr   = NULL;
     void            *entry   = NULL;
     int i = 0;
+    int j = 0;
+    int k = 0;
     char *exec = NULL;
 
     hdr = (Elf32_Ehdr *) elf_start;
@@ -103,13 +110,63 @@ void *image_load (char *elf_start, unsigned int size)
 
     phdr = (Elf32_Phdr *)(elf_start + hdr->e_phoff);
 
+    Elf32_Dyn* dynamic_table = 0;
+
+    Elf32_Sym* symbols_table = 0;
+
+    shdr = (Elf32_Shdr *)(elf_start + hdr->e_shoff);
+
+    int sym_tab_size = 0;
+
+    char* to_find[] = {"_start", "main"};
+
+    for(i=0; i < hdr->e_shnum; ++i) {
+        if (shdr[i].sh_type == SHT_DYNSYM) {
+            syms = (Elf32_Sym*)(elf_start + shdr[i].sh_offset);
+            strings = elf_start + shdr[shdr[i].sh_link].sh_offset;
+
+            sym_tab_size = shdr[i].sh_size;
+
+        }
+        if (shdr[i].sh_type == SHT_SYMTAB) {
+
+            sym_str = elf_start + shdr[shdr[i].sh_link].sh_offset;
+            entry = find_sym(to_find[N], shdr + i, sym_str, elf_start, exec);
+        }
+    }
+
     for(i=0; i < hdr->e_phnum; ++i) {
-//
-//        if(phdr[i].p_type == PT_DYNAMIC) {
-////            printf("%d\n", phdr[i].p_vaddr);
-//
-//            continue;
-//        }
+
+        if(phdr[i].p_type == PT_DYNAMIC) {
+
+            dynamic_table = (Elf32_Dyn*)(phdr[i].p_vaddr + exec);
+
+//            printf("size: %d\n", sizeof(Elf32_Dyn));
+
+            for (j=0; j < phdr[i].p_filesz / sizeof(Elf32_Dyn); j++) {
+//                printf("%d\n", dynamic_table[j].d_tag);
+                if(dynamic_table[j].d_tag == DT_SYMTAB) {
+                    symbols_table = (Elf32_Sym*)(dynamic_table[j].d_un.d_ptr + exec);
+
+                    for (k = 0; k < sym_tab_size / sizeof(Elf32_Sym); k++) {
+
+                        if (strcmp("print", strings + symbols_table[k].st_name) == 0) {
+//                            symbols_table[k].st_value = (Elf32_Word)0x99;
+                            *(Elf32_Word*)(exec + dynamic_table[j].d_un.d_ptr + k * sizeof(Elf32_Sym) + 4) = (Elf32_Word)0x99;
+                        }
+                        if (strcmp("exit_", strings + symbols_table[k].st_name) == 0) {
+                            symbols_table[k].st_value = (Elf32_Word)0x99;
+                        }
+
+
+//                        printf("%s\n", strings + symbols_table[k].st_name);
+                    }
+
+                }
+            }
+
+            continue;
+        }
 
         if(phdr[i].p_type != PT_LOAD) {
             continue;
@@ -133,33 +190,41 @@ void *image_load (char *elf_start, unsigned int size)
 
         memmove(taddr,start,phdr[i].p_filesz);
 
-        if(!(phdr[i].p_flags & PF_W)) {
+//        if(!(phdr[i].p_flags & PF_W)) {
+//            // Read-only.
+//            mprotect((unsigned char *) taddr,
+//                     phdr[i].p_memsz,
+//                     PROT_READ);
+//        }
+//
+//        if(phdr[i].p_flags & PF_X) {
+//            // Executable.
+//            mprotect((unsigned char *) taddr,
+//                     phdr[i].p_memsz,
+//                     PROT_EXEC);
+//        }
+    }
+
+
+    for(i=0; i < hdr->e_phnum; ++i) {
+
+        if(phdr[i].p_type != PT_LOAD) {
+            continue;
+        }
+
+
+        if (!(phdr[i].p_flags & PF_W)) {
             // Read-only.
             mprotect((unsigned char *) taddr,
                      phdr[i].p_memsz,
-                     PROT_READ);
+                     PROT_READ | PROT_WRITE);
         }
 
-        if(phdr[i].p_flags & PF_X) {
+        if (phdr[i].p_flags & PF_X) {
             // Executable.
             mprotect((unsigned char *) taddr,
                      phdr[i].p_memsz,
-                     PROT_EXEC);
-        }
-    }
-
-    shdr = (Elf32_Shdr *)(elf_start + hdr->e_shoff);
-
-    char* to_find[] = {"_start", "main"};
-
-    for(i=0; i < hdr->e_shnum; ++i) {
-        if (shdr[i].sh_type == SHT_DYNSYM) {
-            syms = (Elf32_Sym*)(elf_start + shdr[i].sh_offset);
-            strings = elf_start + shdr[shdr[i].sh_link].sh_offset;
-        }
-        if (shdr[i].sh_type == SHT_SYMTAB) {
-            sym_str = elf_start + shdr[shdr[i].sh_link].sh_offset;
-            entry = find_sym(to_find[N], shdr + i, sym_str, elf_start, exec);
+                     PROT_EXEC | PROT_WRITE | PROT_READ);
         }
     }
 
@@ -169,21 +234,16 @@ void *image_load (char *elf_start, unsigned int size)
         }
     }
 
+/*
     for(i=0; i < hdr->e_shnum; ++i) {
         if (shdr[i].sh_type == SHT_SYMTAB) {
             Elf32_Sym *dyn_syms = (Elf32_Sym *) (elf_start + shdr[i].sh_offset);
-            Elf32_Sym *dyn_syms2 = (Elf32_Sym *) (exec + shdr[i].sh_addr);
-            int j;
+//            Elf32_Sym *dyn_syms2 = (Elf32_Sym *) (exec + symbols_table);
             for (j = 0; j < shdr[i].sh_size / sizeof(Elf32_Sym); j += 1) {
                 printf("%s %x\n", sym_str + dyn_syms[j].st_name, dyn_syms[j].st_value);
-
-                printf("%x \n", dyn_syms2[j].st_value);
-//                *(Elf32_Word*)(exec + rel[j].r_offset) =  (Elf32_Word)
-
             }
-            return NULL;
         }
-    }
+    }*/
 
 //    return (void*)hdr->e_entry;
 
