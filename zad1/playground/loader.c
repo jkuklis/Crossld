@@ -14,25 +14,41 @@ int is_image_valid(Elf32_Ehdr *hdr)
     return 1;
 }
 
+void gizmo() {
+    printf("lol\n");
+}
+
 void *resolve(const char* sym)
 {
+    void* resolved;
     static void *handle = NULL;
     if (handle == NULL) {
         handle = dlopen("libc.so", RTLD_NOW);
     }
-    return dlsym(handle, sym);
+    resolved = dlsym(handle, sym);
+//    if (!resolved) {
+//        handle = dlopen("/home/jk/studies/zso/workspace/zad1/hello/fakelib.so", RTLD_NOW);
+//        resolved = dlsym(handle, sym);
+//    }
+    return resolved;
 }
 
 void relocate(Elf32_Shdr* shdr, const Elf32_Sym* syms, const char* strings, const char* src, char* dst)
 {
     Elf32_Rel* rel = (Elf32_Rel*)(src + shdr->sh_offset);
     int j;
+    void* resolved;
     for(j = 0; j < shdr->sh_size / sizeof(Elf32_Rel); j += 1) {
         const char* sym = strings + syms[ELF32_R_SYM(rel[j].r_info)].st_name;
+//        printf("%d\n", ELF32_R_TYPE(rel[j].r_info));
         switch(ELF32_R_TYPE(rel[j].r_info)) {
             case R_386_JMP_SLOT:
             case R_386_GLOB_DAT:
-                *(Elf32_Word*)(dst + rel[j].r_offset) = (Elf32_Word)resolve(sym);
+                resolved = resolve(sym);
+                *(Elf32_Word*)(dst + rel[j].r_offset) =  (Elf32_Word)resolved;
+                break;
+            default:
+//                printf("%s\n", sym);
                 break;
         }
     }
@@ -88,6 +104,12 @@ void *image_load (char *elf_start, unsigned int size)
     phdr = (Elf32_Phdr *)(elf_start + hdr->e_phoff);
 
     for(i=0; i < hdr->e_phnum; ++i) {
+//
+//        if(phdr[i].p_type == PT_DYNAMIC) {
+////            printf("%d\n", phdr[i].p_vaddr);
+//
+//            continue;
+//        }
 
         if(phdr[i].p_type != PT_LOAD) {
             continue;
@@ -147,9 +169,25 @@ void *image_load (char *elf_start, unsigned int size)
         }
     }
 
+    for(i=0; i < hdr->e_shnum; ++i) {
+        if (shdr[i].sh_type == SHT_SYMTAB) {
+            Elf32_Sym *dyn_syms = (Elf32_Sym *) (elf_start + shdr[i].sh_offset);
+            Elf32_Sym *dyn_syms2 = (Elf32_Sym *) (exec + shdr[i].sh_addr);
+            int j;
+            for (j = 0; j < shdr[i].sh_size / sizeof(Elf32_Sym); j += 1) {
+                printf("%s %x\n", sym_str + dyn_syms[j].st_name, dyn_syms[j].st_value);
+
+                printf("%x \n", dyn_syms2[j].st_value);
+//                *(Elf32_Word*)(exec + rel[j].r_offset) =  (Elf32_Word)
+
+            }
+            return NULL;
+        }
+    }
+
 //    return (void*)hdr->e_entry;
 
-    return entry;// + 0x10;
+    return entry;
 
 }/* image_load */
 

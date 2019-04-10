@@ -1,7 +1,6 @@
 asm (
 	".global _start\n"
 	"_start:\n"
-    "ret;\n"
 	"call hello;\n"
 	"hlt;\n"
 );

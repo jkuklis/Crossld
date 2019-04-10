@@ -16,5 +16,5 @@ hello-64: hello-64.c libcrossld.so
 
 
 prepare:
-	cp ../../crossld_main.c .
-	cp ../../../cmake-build-debug/libcrossld.so .
+	cp ../crossld_main.c .
+	cp ../../cmake-build-debug/libcrossld.so .
