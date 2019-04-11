@@ -404,18 +404,25 @@ int is_image_valid(Elf32_Ehdr *hdr)
 }
 
 
-void relocate(Elf32_Shdr* shdr, const Elf32_Sym* syms, const char* strings, const char* src)
+void relocate(Elf32_Shdr* shdr, const Elf32_Sym* syms, const char* strings, const char* src,
+        const struct function *funcs, int nfuncs)
 {
     Elf32_Rel* rel = (Elf32_Rel*)(src + shdr->sh_offset);
     int j;
     void* resolved;
     for(j = 0; j < shdr->sh_size / sizeof(Elf32_Rel); j += 1) {
-        const char* sym = strings + syms[ELF32_R_SYM(rel[j].r_info)].st_name;
+        const char* sym = strings + syms[ELF32_R_SYM(rel[j].r_info)].st_name;S
         switch(ELF32_R_TYPE(rel[j].r_info)) {
             case R_386_JMP_SLOT:
             case R_386_GLOB_DAT:
-                resolved = 0x1234599;
-                *(Elf32_Word*)rel[j].r_offset = (Elf32_Word)(long)resolved;
+                for(int i = 0; i < nfuncs; i++) {
+                    if (strcmp(sym, funcs[i].name) == 0) {
+
+                        void *invoker = create_invoker(&funcs[i]);
+
+                        *(Elf32_Word *) rel[j].r_offset = (Elf32_Word) (long) invoker;
+                    }
+                }
 //                *(Elf32_Word*)(void*)(long long)(rel[j].r_offset) = (Elf32_Word)resolved;
                 break;
             default:
@@ -585,7 +592,7 @@ void *image_load (char *elf_start, const struct function *funcs, int nfuncs)
 
     for(i=0; i < hdr->e_shnum; ++i) {
         if (shdr[i].sh_type == SHT_REL) {
-            relocate(shdr + i, syms, strings, elf_start);
+            relocate(shdr + i, syms, strings, elf_start, funcs, nfuncs);
         }
     }
 

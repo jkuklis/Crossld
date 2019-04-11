@@ -179,7 +179,7 @@ void *image_load (char *elf_start, unsigned int size)
         }
 
         if(phdr[i].p_filesz > phdr[i].p_memsz) {
-            printk("image_load:: p_filesz > p_memsz\n");
+//            printk("image_load:: p_filesz > p_memsz\n");
             munmap(exec, size);
             return 0;
         }
