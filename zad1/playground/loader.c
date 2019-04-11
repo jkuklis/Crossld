@@ -4,6 +4,7 @@
 #include <sys/mman.h>
 #include <dlfcn.h>
 #include <elf.h>
+#include <unistd.h>
 
 void printk(const char* msg)
 {
@@ -27,10 +28,6 @@ void *resolve(const char* sym)
         handle = dlopen("libc.so", RTLD_NOW);
     }
     resolved = dlsym(handle, sym);
-//    if (!resolved) {
-//        handle = dlopen("/home/jk/studies/zso/workspace/zad1/hello/fakelib.so", RTLD_NOW);
-//        resolved = dlsym(handle, sym);
-//    }
     return resolved;
 }
 
@@ -47,7 +44,7 @@ void relocate(Elf32_Shdr* shdr, const Elf32_Sym* syms, const char* strings, cons
             case R_386_JMP_SLOT:
             case R_386_GLOB_DAT:
                 resolved = resolve(sym);
-//                resolved = (void*)0x12345;
+                resolved = (void*)0x12345;
                 Elf32_Word* toWhere = (Elf32_Word*)(dst + rel[j].r_offset);
 //                resolved = rel[j].r_offset;
                 *toWhere =  (Elf32_Word)resolved;
@@ -97,16 +94,16 @@ void *image_load (char *elf_start, unsigned int size)
         return 0;
     }
 
-    exec = mmap(NULL, size, PROT_READ | PROT_WRITE | PROT_EXEC,
-                MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
-
-    if(!exec) {
-        printk("image_load:: error allocating memory\n");
-        return 0;
-    }
-
-    // Start with clean memory.
-    memset(exec,0x0,size);
+//    exec = mmap(NULL, size, PROT_READ | PROT_WRITE | PROT_EXEC,
+//                MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+//
+//    if(!exec) {
+//        printk("image_load:: error allocating memory\n");
+//        return 0;
+//    }
+//
+//    // Start with clean memory.
+//    memset(exec,0x0,size);
 
     phdr = (Elf32_Phdr *)(elf_start + hdr->e_phoff);
 
@@ -149,8 +146,6 @@ void *image_load (char *elf_start, unsigned int size)
 
             dynamic_table = (Elf32_Dyn*)(phdr[i].p_vaddr + exec);
 
-//            printf("size: %d\n", sizeof(Elf32_Dyn));
-
             for (j=0; j < phdr[i].p_filesz / sizeof(Elf32_Dyn); j++) {
 //                printf("%d\n", dynamic_table[j].d_tag);
                 if(dynamic_table[j].d_tag == DT_SYMTAB) {
@@ -165,11 +160,7 @@ void *image_load (char *elf_start, unsigned int size)
                         if (strcmp("exit_", strings + symbols_table[k].st_name) == 0) {
                             symbols_table[k].st_value = (Elf32_Word)0x99;
                         }
-
-
-//                        printf("%s\n", strings + symbols_table[k].st_name);
                     }
-
                 }
 
                 if(dynamic_table[j].d_tag == DT_PLTRELSZ) {
@@ -210,34 +201,37 @@ void *image_load (char *elf_start, unsigned int size)
         start = elf_start + phdr[i].p_offset;
         taddr = phdr[i].p_vaddr + exec;
 
-//        printf("%x %p %d %d %d\n", size, exec, phdr[i].p_offset, phdr[i].p_filesz, phdr[i].p_memsz);
+//        static size_t pagesize;
+//        if (!pagesize) {
+//            pagesize = sysconf(_SC_PAGESIZE);
+//            if (pagesize == (size_t) - 1) perror("getpagesize");
+//        }
+//
+//        size_t rounded_codesize = ((phdr[i].p_memsz + 1 + pagesize - 1)
+//                                   / pagesize) * pagesize;
 
 
+        char *aligned = (char*)(((long)taddr >> 12) << 12);
+
+        int ext_length = phdr[i].p_memsz + (taddr - aligned);
+
+        mmap(aligned, ext_length, PROT_READ | PROT_WRITE | PROT_EXEC,
+                MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+
+        memset(taddr, 0x0, ext_length);
 
         memmove(taddr,start,phdr[i].p_filesz);
 
-//        if(!(phdr[i].p_flags & PF_W)) {
-//            // Read-only.
-//            mprotect((unsigned char *) taddr,
-//                     phdr[i].p_memsz,
-//                     PROT_READ);
-//        }
-//
-//        if(phdr[i].p_flags & PF_X) {
-//            // Executable.
-//            mprotect((unsigned char *) taddr,
-//                     phdr[i].p_memsz,
-//                     PROT_EXEC);
-//        }
     }
 
 
     for(i=0; i < hdr->e_phnum; ++i) {
 
+        taddr = phdr[i].p_vaddr + exec;
+
         if(phdr[i].p_type != PT_LOAD) {
             continue;
         }
-
 
         if (!(phdr[i].p_flags & PF_W)) {
             // Read-only.
@@ -260,17 +254,6 @@ void *image_load (char *elf_start, unsigned int size)
         }
     }
 
-/*
-    for(i=0; i < hdr->e_shnum; ++i) {
-        if (shdr[i].sh_type == SHT_SYMTAB) {
-            Elf32_Sym *dyn_syms = (Elf32_Sym *) (elf_start + shdr[i].sh_offset);
-//            Elf32_Sym *dyn_syms2 = (Elf32_Sym *) (exec + symbols_table);
-            for (j = 0; j < shdr[i].sh_size / sizeof(Elf32_Sym); j += 1) {
-                printf("%s %x\n", sym_str + dyn_syms[j].st_name, dyn_syms[j].st_value);
-            }
-        }
-    }*/
-
 //    return (void*)hdr->e_entry;
 
     return entry;
@@ -284,6 +267,5 @@ int main(int argc, char** argv, char** envp)
     FILE* elf = fopen(argv[N + 1], "rb");
     fread(buf, sizeof buf, 1, elf);
     ptr=image_load(buf, sizeof buf);
-//    printf("%p\n", ptr);
     return ptr(argc,argv,envp);
 }

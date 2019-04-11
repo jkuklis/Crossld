@@ -161,10 +161,10 @@ formatter const make_formatter (const char *format) {
             0xc3
     };
 
+
      */
 
     size_t codelen = dynamic_end - dynamic;
-
 //    size_t codelen = 37;
 
     static size_t pagesize;
