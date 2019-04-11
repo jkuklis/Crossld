@@ -176,7 +176,6 @@ extern char trampoline_end;
 
 __asm__ (
         "trampoline_begin:\n"
-            "subl $8, %esp;\n"
             "movl $0x33, 4(%esp);\n"   // change to 64 bit
             "movl $0, %eax;\n"         // move function pointer to be invoked
         "trampoline_fun_ptr:\n"
@@ -404,26 +403,36 @@ int is_image_valid(Elf32_Ehdr *hdr)
 }
 
 
+struct function default_exit_struct(void *exit_hook) {
+    enum type exit_types[] = {TYPE_PTR};
+    struct function exit_struct = {"print", exit_types, 1, TYPE_VOID, exit_hook};
+    return exit_struct;
+}
+
+
 void relocate(Elf32_Shdr* shdr, const Elf32_Sym* syms, const char* strings, const char* src,
-        const struct function *funcs, int nfuncs)
+        const struct function *funcs, int nfuncs, struct function exit_struct)
 {
     Elf32_Rel* rel = (Elf32_Rel*)(src + shdr->sh_offset);
     int j;
-    void* resolved;
+    void* invoker;
     for(j = 0; j < shdr->sh_size / sizeof(Elf32_Rel); j += 1) {
-        const char* sym = strings + syms[ELF32_R_SYM(rel[j].r_info)].st_name;S
+        const char* sym = strings + syms[ELF32_R_SYM(rel[j].r_info)].st_name;
         switch(ELF32_R_TYPE(rel[j].r_info)) {
             case R_386_JMP_SLOT:
             case R_386_GLOB_DAT:
-                for(int i = 0; i < nfuncs; i++) {
-                    if (strcmp(sym, funcs[i].name) == 0) {
-
-                        void *invoker = create_invoker(&funcs[i]);
-
-                        *(Elf32_Word *) rel[j].r_offset = (Elf32_Word) (long) invoker;
+                invoker = 0;
+                if (strcmp(sym, "exit")) {
+                    invoker = create_invoker(&exit_struct);
+                } else {
+                    for (int i = 0; i < nfuncs; i++) {
+                        if (strcmp(sym, funcs[i].name) == 0) {
+                            invoker = create_invoker(&funcs[i]);
+                            break;
+                        }
                     }
                 }
-//                *(Elf32_Word*)(void*)(long long)(rel[j].r_offset) = (Elf32_Word)resolved;
+                *(Elf32_Word *) rel[j].r_offset = (Elf32_Word) (long) invoker;
                 break;
             default:
                 break;
@@ -481,8 +490,6 @@ void *image_load (char *elf_start, const struct function *funcs, int nfuncs)
     int sym_tab_size = 0;
 
     int pltrelsz = 0;
-
-    char* to_find[] = {"_start", "main"};
 
     for(i=0; i < hdr->e_shnum; ++i) {
         if (shdr[i].sh_type == SHT_DYNSYM) {
@@ -590,9 +597,13 @@ void *image_load (char *elf_start, const struct function *funcs, int nfuncs)
         }
     }
 
+    struct function exit_struct;
+
+    exit_struct = default_exit_struct(printf);
+
     for(i=0; i < hdr->e_shnum; ++i) {
         if (shdr[i].sh_type == SHT_REL) {
-            relocate(shdr + i, syms, strings, elf_start, funcs, nfuncs);
+            relocate(shdr + i, syms, strings, elf_start, funcs, nfuncs, exit_struct);
         }
     }
 
@@ -660,6 +671,30 @@ void* generate_switch() {
     return switcher;
 }
 
+extern char exit_custom;
+extern char exit_argument;
+extern char exit_custom_end;
+
+//
+//void generate_exit() {
+//    void* real_exit;
+//
+//    void* status;
+//
+//    __asm__ volatile (
+//        "exit_custom:\n"
+//        ".code32\n"
+//        "mov 4(%%esp), %0\n"
+//        "pushl $0x33\n"
+//        "pushl %1\n"
+//        "lret\n"
+//        ".code64\n"
+//        "exit_custom_end:\n"
+//        : "=m" (status)
+//        : "g" (real_exit)
+//        :
+//    );
+//}
 
 
 int crossld_start(const char *filename, const struct function *funcs, int nfuncs) {

@@ -5,12 +5,10 @@ asm (
 	"hlt;\n"
 );
 
-//_Noreturn
-void exit_(int status);
+_Noreturn void exit(int status);
 void print(char *str);
 
 void hello()
 {
 	print("Hello world\n");
-	exit_(0);
 }
