@@ -332,6 +332,8 @@ __asm__ (
     "invoker_begin:\n"
         "movabs $0, %rdi\n"
     "invoker_struct:\n"
+        "movabs $0, %rsi\n"
+    "invoker_args:\n"
         "movabs $0, %rax\n"
     "invoker_handler:\n"
         "jmp *%rax\n"
@@ -339,7 +341,45 @@ __asm__ (
 );
 
 void real_invoker(const struct function *to_invoke) {
-    printf("hehe\n");
+    void *args[to_invoke->nargs];
+
+    size_t stack_position = 4;
+
+    void* arg_val;
+
+    for (int i = 0; i < to_invoke->nargs; i++) {
+        enum type arg_type = to_invoke->args[i];
+        printf("%d %d\n", arg_type, TYPE_PTR);
+        switch (arg_type) {
+            case TYPE_VOID:
+                printf("Void argument!\n");
+                return;
+                break;
+            case TYPE_INT:
+            case TYPE_LONG:
+            case TYPE_UNSIGNED_INT:
+            case TYPE_UNSIGNED_LONG:
+            case TYPE_PTR:
+                __asm__ volatile (
+                    "movq %0, %%rax\n"
+                    "lea (%%rsp, %%rax, 1), %%rax\n"
+                    "movl (%%rax), %%eax\n"
+                    "movl %%eax, %1\n"
+                    : "=m" (arg_val)
+                    : "g" (stack_position)
+                );
+                printf("e\n");
+                printf("%s\n", (char*) arg_val);
+                stack_position += 4;
+                break;
+            default:
+                printf("efs\n");
+        }
+
+    }
+
+    printf("%s\n", to_invoke->name);
+
 }
 
 void* create_invoker(const struct function *to_invoke) {
@@ -435,15 +475,15 @@ void* create_invoker(const struct function *to_invoke) {
 //    return invoker;
 //}
 
-
-void make_trampolines(const struct function *funcs, int nfuncs, void** trampolines_addresses) {
-    for (int i = 0; i < nfuncs; ++i) {
-
-        void *invoker = create_invoker(&funcs[i]);
-
-        trampolines_addresses[i] = create_trampoline(invoker);
-    }
-}
+//
+//void make_trampolines(const struct function *funcs, int nfuncs, void** trampolines_addresses) {
+//    for (int i = 0; i < nfuncs; ++i) {
+//
+//        void *invoker = create_invoker(&funcs[i]);
+//
+//        trampolines_addresses[i] = create_trampoline(invoker);
+//    }
+//}
 
 
 
@@ -478,13 +518,13 @@ void relocate(Elf32_Shdr* shdr, const Elf32_Sym* syms, const char* strings, cons
                 } else {
                     for (int i = 0; i < nfuncs; i++) {
                         if (strcmp(sym, funcs[i].name) == 0) {
-                            invoker = create_invoker(&funcs[i]);
+                            invoker = create_invoker(funcs + i);
                             break;
                         }
                     }
                 }
                 trampoline = create_trampoline(invoker);
-                *(Elf32_Word *) rel[j].r_offset = (Elf32_Word) (long) trampoline;
+                *(Elf32_Word *)(long long)rel[j].r_offset = (Elf32_Word) (long) trampoline;
                 break;
             default:
                 break;
