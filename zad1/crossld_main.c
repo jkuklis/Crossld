@@ -176,11 +176,13 @@ extern char trampoline_end;
 
 __asm__ (
         "trampoline_begin:\n"
+            ".code32\n"
             "movl $0x33, 4(%esp);\n"   // change to 64 bit
             "movl $0, %eax;\n"         // move function pointer to be invoked
         "trampoline_fun_ptr:\n"
             "movl %eax, (%esp);\n"
             "lret;\n"
+            ".code64\n"
         "trampoline_end:\n"
 );
 
@@ -201,7 +203,7 @@ void* create_trampoline(void* invoker_function) {
 
     memcpy(trampoline, &trampoline_begin, codelen);
 
-    memcpy(trampoline + fun_ptr_offset, invoker_function, 4);
+    memcpy(trampoline + fun_ptr_offset, &invoker_function, 4);
 
     if (mprotect(trampoline, codelen, PROT_READ | PROT_EXEC))
         perror("mprotect");
@@ -209,118 +211,141 @@ void* create_trampoline(void* invoker_function) {
     return trampoline;
 }
 
-extern char arg_begin;
-extern char arg32_0;
-extern char arg32_1;
-extern char arg32_2;
-extern char arg32_3;
-extern char arg32_4;
-extern char arg32_5;
-extern char arg32_more;
-extern char arg32_after;
-extern char arg64_0;
-extern char arg64_1;
-extern char arg64_2;
-extern char arg64_3;
-extern char arg64_4;
-extern char arg64_5;
-extern char arg64_more;
-extern char arg64_after;
-extern char arg_transfer;
-extern char arg_transfer_after;
-extern char arg_end;
-extern char call_invoked;
-extern char call_argument;
-extern char call_end;
-extern char comeback_begin;
-extern char comeback_end;
-extern char comeback_fun_ptr;
-extern char just_ret;
+//extern char arg_begin;
+//extern char arg32_0;
+//extern char arg32_1;
+//extern char arg32_2;
+//extern char arg32_3;
+//extern char arg32_4;
+//extern char arg32_5;
+//extern char arg32_more;
+//extern char arg32_after;
+//extern char arg64_0;
+//extern char arg64_1;
+//extern char arg64_2;
+//extern char arg64_3;
+//extern char arg64_4;
+//extern char arg64_5;
+//extern char arg64_more;
+//extern char arg64_after;
+//extern char arg_transfer;
+//extern char arg_transfer_after;
+//extern char arg_end;
+//extern char call_invoked;
+//extern char call_argument;
+//extern char call_end;
+//extern char comeback_begin;
+//extern char comeback_end;
+//extern char comeback_fun_ptr;
+//extern char just_ret;
+
+//__asm__ (
+//        "arg_begin:\n"
+//        "arg32_0:\n"
+//            ".code32\n"
+//            "movl 256(%rsp), %edi;\n"
+//        "arg32_1:\n"
+//            "movl 256(%rsp), %esi;\n"
+//        "arg32_2:\n"
+//            "movl 256(%rsp), %edx;\n"
+//        "arg32_3:\n"
+//            "movl 256(%rsp), %ecx;\n"
+//        "arg32_4:\n"
+//            "movl 256(%rsp), %r8d;\n"
+//        "arg32_5:\n"
+//            "movl 256(%rsp), %r9d;\n"
+//        "arg32_more:\n"
+//            "movl 256(%rsp), %r10d;\n"
+//        "arg32_after:\n"
+//
+//        "arg64_0:\n"
+//            "movq 256(%rsp), %rdi;\n"
+//        "arg64_1:\n"
+//            "movq 256(%rsp), %rsi;\n"
+//        "arg64_2:\n"
+//            "movq 256(%rsp), %rdx;\n"
+//        "arg64_3:\n"
+//            "movq 256(%rsp), %rcx;\n"
+//        "arg64_4:\n"
+//            "movq 256(%rsp), %r8;\n"
+//        "arg64_5:\n"
+//            "movq 256(%rsp), %r9;\n"
+//        "arg64_more:\n"
+//            "movq 256(%rsp), %r10;\n"
+//        "arg64_after:\n"
+//
+//        "arg_transfer:\n"
+//            "movq %r10, 256(%rsp);\n"
+//        "arg_transfer_after:\n"
+//        "arg_end:\n"
+//
+//        "call_invoked:\n"
+//            "subq $8, %rsp;\n"
+//            "movabs $0, %rax;\n"
+//        "call_argument:\n"
+//            "callq  *%rax;\n"
+//            "addq $8, %rsp;\n"
+//        "call_end:\n"
+//
+//        // check that returned value is correct
+//
+//        "comeback_begin:\n"
+//            "subq $8, %rsp;\n"
+//            "movq $0x23, 4(%rsp);\n"   // change to 32 bit
+//            "movq $0, %rax;\n"         // move function pointer to be invoked
+//        "comeback_fun_ptr:\n"
+//            "movq %rax, (%rsp);\n"
+//            "lret;\n"
+//            ".code64"
+//        "comeback_end:\n"
+//
+//);
+
+
+//__asm__ (
+//        "just_ret:\n"
+//            "ret;\n"
+//        "just_ret_after:"
+//);
+//
+//int relocate_argument(void *invoker_position, char* arg, char* arg_next, int rsp_from_offset) {
+//    int length = arg_next - arg;
+//    memcpy(invoker_position, arg, length);
+//    memcpy(invoker_position + length - 4, &rsp_from_offset, 4);
+//    return length;
+//}
+
+
+//int put_argument_on_stack(void *invoker_position, int rsp_to_offset) {
+//    int length = &arg_transfer_after - &arg_transfer;
+//    memcpy(invoker_position, &arg_transfer, length);
+//    memcpy(invoker_position + length - 4, &rsp_to_offset, 4);
+//}
+
+
+extern char invoker_end;
+extern char invoker_struct;
+extern char invoker_handler;
+extern char invoker_begin;
 
 __asm__ (
-        "arg_begin:\n"
-        "arg32_0:\n"
-            "movl 256(%rsp), %edi;\n"
-        "arg32_1:\n"
-            "movl 256(%rsp), %esi;\n"
-        "arg32_2:\n"
-            "movl 256(%rsp), %edx;\n"
-        "arg32_3:\n"
-            "movl 256(%rsp), %ecx;\n"
-        "arg32_4:\n"
-            "movl 256(%rsp), %r8d;\n"
-        "arg32_5:\n"
-            "movl 256(%rsp), %r9d;\n"
-        "arg32_more:\n"
-            "movl 256(%rsp), %r10d;\n"
-        "arg32_after:\n"
-
-        "arg64_0:\n"
-            "movq 256(%rsp), %rdi;\n"
-        "arg64_1:\n"
-            "movq 256(%rsp), %rsi;\n"
-        "arg64_2:\n"
-            "movq 256(%rsp), %rdx;\n"
-        "arg64_3:\n"
-            "movq 256(%rsp), %rcx;\n"
-        "arg64_4:\n"
-            "movq 256(%rsp), %r8;\n"
-        "arg64_5:\n"
-            "movq 256(%rsp), %r9;\n"
-        "arg64_more:\n"
-            "movq 256(%rsp), %r10;\n"
-        "arg64_after:\n"
-
-        "arg_transfer:\n"
-            "movq %r10, 256(%rsp);\n"
-        "arg_transfer_after:\n"
-        "arg_end:\n"
-
-        "call_invoked:\n"
-            "subq $8, %rsp;\n"
-            "movabs $0, %rax;\n"
-        "call_argument:\n"
-            "callq  *%rax;\n"
-            "addq $8, %rsp;\n"
-        "call_end:\n"
-
-        // check that returned value is correct
-
-        "comeback_begin:\n"
-            "subq $8, %rsp;\n"
-            "movq $0x23, 4(%rsp);\n"   // change to 32 bit
-            "movq $0, %rax;\n"         // move function pointer to be invoked
-        "comeback_fun_ptr:\n"
-            "movq %rax, (%rsp);\n"
-            "lret;\n"
-        "comeback_end:\n"
-
+    "invoker_begin:\n"
+        "movabs $0, %rdi\n"
+    "invoker_struct:\n"
+        "movabs $0, %rax\n"
+    "invoker_handler:\n"
+        "jmp *%rax\n"
+    "invoker_end:\n"
 );
 
-
-__asm__ (
-        "just_ret:\n"
-            "ret;\n"
-        "just_ret_after:"
-);
-
-int relocate_argument(void *invoker_position, char* arg, char* arg_next, int rsp_from_offset) {
-    int length = arg_next - arg;
-    memcpy(invoker_position, arg, length);
-    memcpy(invoker_position + length - 4, &rsp_from_offset, 4);
-    return length;
+void real_invoker(const struct funcion *to_invoke) {
+    
 }
-
-
-int put_argument_on_stack(void *invoker_position, int rsp_to_offset) {
-    int length = &arg_transfer_after - &arg_transfer;
-    memcpy(invoker_position, &arg_transfer, length);
-    memcpy(invoker_position + length - 4, &rsp_to_offset, 4);
-}
-
 
 void* create_invoker(const struct function *to_invoke) {
-    size_t codelen = 2 * 8 * (to_invoke->nargs) + (&comeback_end - &call_invoked);
+    size_t codelen = &invoker_end - &invoker_begin;
+    size_t struct_offset = (&invoker_struct - &invoker_begin) - 8;
+    size_t handler_offset = (&invoker_handler - &invoker_begin) - 8;
 
     void* invoker;
 
@@ -331,59 +356,82 @@ void* create_invoker(const struct function *to_invoke) {
         printf("Map error for invoker!\n");
     }
 
-    int rsp_from_offset = 8;
-    int rsp_to_offset = 8;
-    int invoker_offset = 0;
+    memcpy(invoker, &invoker_begin, codelen);
+    memcpy(invoker + struct_offset, &to_invoke, 8);
+    memcpy(invoker + handler_offset, &real_invoker, 8);
 
-    char* arg32[] = {&arg32_0, &arg32_1, &arg32_2, &arg32_3, &arg32_4, &arg32_5, &arg32_more, &arg32_after};
-    char* arg64[] = {&arg64_0, &arg64_1, &arg64_2, &arg64_3, &arg64_4, &arg64_5, &arg64_more, &arg64_after};
-
-    int length;
-    for (int i = 0; i < to_invoke->nargs; i++) {
-        enum type arg_type = to_invoke->args[i];
-        switch(arg_type) {
-            case TYPE_VOID:
-                printf("Void argument!\n");
-                return NULL;
-                break;
-            case TYPE_INT:
-            case TYPE_LONG:
-            case TYPE_UNSIGNED_INT:
-            case TYPE_UNSIGNED_LONG:
-            case TYPE_PTR:
-                if (i < 6) {
-                    length = relocate_argument(invoker + invoker_offset, arg32[i], arg32[i+1], rsp_from_offset);
-                } else {
-                    length = relocate_argument(invoker + invoker_offset, &arg32_more, &arg32_after, rsp_from_offset);
-                    length += put_argument_on_stack(invoker + invoker_offset + length, rsp_to_offset);
-                    rsp_to_offset += 8;
-                }
-                rsp_from_offset += 4;
-                invoker_offset += length;
-                break;
-            case TYPE_LONG_LONG:
-            case TYPE_UNSIGNED_LONG_LONG:
-                if (i < 6) {
-                    length = relocate_argument(invoker + invoker_offset, arg64[i], arg64[i+1], rsp_from_offset);
-                } else {
-                    length = relocate_argument(invoker + invoker_offset, &arg64_more, &arg64_after, rsp_from_offset);
-                    length += put_argument_on_stack(invoker + invoker_offset + length, rsp_to_offset);
-                    rsp_to_offset += 8;
-                }
-                rsp_from_offset += 8;
-                invoker_offset += length;
-                break;
-
-        }
-    }
-
-    length = &call_end - &call_invoked;
-    memcpy(invoker + invoker_offset, &call_invoked, length);
-    memcpy(invoker + invoker_offset + (&call_argument - &call_invoked) - 8, &(to_invoke->name), 8);
-    invoker_offset += length;
+    mprotect(invoker, codelen, PROT_READ | PROT_EXEC);
 
     return invoker;
 }
+
+
+
+//void* create_invoker_faulty(const struct function *to_invoke) {
+//    size_t codelen = 2 * 8 * (to_invoke->nargs) + (&comeback_end - &call_invoked);
+//
+//    void* invoker;
+//
+//    if ((invoker = mmap(NULL, codelen,
+//                        PROT_READ | PROT_WRITE,
+//                        MAP_PRIVATE | MAP_ANONYMOUS | MAP_32BIT,
+//                        -1, 0)) == MAP_FAILED) {
+//        printf("Map error for invoker!\n");
+//    }
+//
+//    int rsp_from_offset = 8;
+//    int rsp_to_offset = 8;
+//    int invoker_offset = 0;
+//
+//    char* arg32[] = {&arg32_0, &arg32_1, &arg32_2, &arg32_3, &arg32_4, &arg32_5, &arg32_more, &arg32_after};
+//    char* arg64[] = {&arg64_0, &arg64_1, &arg64_2, &arg64_3, &arg64_4, &arg64_5, &arg64_more, &arg64_after};
+//
+//    int length;
+//    for (int i = 0; i < to_invoke->nargs; i++) {
+//        enum type arg_type = to_invoke->args[i];
+//        switch(arg_type) {
+//            case TYPE_VOID:
+//                printf("Void argument!\n");
+//                return NULL;
+//                break;
+//            case TYPE_INT:
+//            case TYPE_LONG:
+//            case TYPE_UNSIGNED_INT:
+//            case TYPE_UNSIGNED_LONG:
+//            case TYPE_PTR:
+//                if (i < 6) {
+//                    length = relocate_argument(invoker + invoker_offset, arg32[i], arg32[i+1], rsp_from_offset);
+//                } else {
+//                    length = relocate_argument(invoker + invoker_offset, &arg32_more, &arg32_after, rsp_from_offset);
+//                    length += put_argument_on_stack(invoker + invoker_offset + length, rsp_to_offset);
+//                    rsp_to_offset += 8;
+//                }
+//                rsp_from_offset += 4;
+//                invoker_offset += length;
+//                break;
+//            case TYPE_LONG_LONG:
+//            case TYPE_UNSIGNED_LONG_LONG:
+//                if (i < 6) {
+//                    length = relocate_argument(invoker + invoker_offset, arg64[i], arg64[i+1], rsp_from_offset);
+//                } else {
+//                    length = relocate_argument(invoker + invoker_offset, &arg64_more, &arg64_after, rsp_from_offset);
+//                    length += put_argument_on_stack(invoker + invoker_offset + length, rsp_to_offset);
+//                    rsp_to_offset += 8;
+//                }
+//                rsp_from_offset += 8;
+//                invoker_offset += length;
+//                break;
+//
+//        }
+//    }
+//
+//    length = &call_end - &call_invoked;
+//    memcpy(invoker + invoker_offset, &call_invoked, length);
+//    memcpy(invoker + invoker_offset + (&call_argument - &call_invoked) - 8, &(to_invoke->name), 8);
+//    invoker_offset += length;
+//
+//    return invoker;
+//}
 
 
 void make_trampolines(const struct function *funcs, int nfuncs, void** trampolines_addresses) {
@@ -416,6 +464,7 @@ void relocate(Elf32_Shdr* shdr, const Elf32_Sym* syms, const char* strings, cons
     Elf32_Rel* rel = (Elf32_Rel*)(src + shdr->sh_offset);
     int j;
     void* invoker;
+    void* trampoline;
     for(j = 0; j < shdr->sh_size / sizeof(Elf32_Rel); j += 1) {
         const char* sym = strings + syms[ELF32_R_SYM(rel[j].r_info)].st_name;
         switch(ELF32_R_TYPE(rel[j].r_info)) {
@@ -432,7 +481,8 @@ void relocate(Elf32_Shdr* shdr, const Elf32_Sym* syms, const char* strings, cons
                         }
                     }
                 }
-                *(Elf32_Word *) rel[j].r_offset = (Elf32_Word) (long) invoker;
+                trampoline = create_trampoline(invoker);
+                *(Elf32_Word *) rel[j].r_offset = (Elf32_Word) (long) trampoline;
                 break;
             default:
                 break;
