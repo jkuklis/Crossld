@@ -47,7 +47,7 @@ void relocate(Elf32_Shdr* shdr, const Elf32_Sym* syms, const char* strings, cons
             case R_386_JMP_SLOT:
             case R_386_GLOB_DAT:
                 resolved = resolve(sym);
-                resolved = (void*)0x12345;
+//                resolved = (void*)0x12345;
                 Elf32_Word* toWhere = (Elf32_Word*)(dst + rel[j].r_offset);
 //                resolved = rel[j].r_offset;
                 *toWhere =  (Elf32_Word)resolved;
@@ -114,9 +114,15 @@ void *image_load (char *elf_start, unsigned int size)
 
     Elf32_Sym* symbols_table = 0;
 
+    Elf32_Rel* relocation_table = 0;
+
     shdr = (Elf32_Shdr *)(elf_start + hdr->e_shoff);
 
+    Elf32_Rel rel_to_change;
+
     int sym_tab_size = 0;
+
+    int pltrelsz = 0;
 
     char* to_find[] = {"_start", "main"};
 
@@ -124,6 +130,7 @@ void *image_load (char *elf_start, unsigned int size)
         if (shdr[i].sh_type == SHT_DYNSYM) {
             syms = (Elf32_Sym*)(elf_start + shdr[i].sh_offset);
             strings = elf_start + shdr[shdr[i].sh_link].sh_offset;
+//          strings can also be taken from _DYNAMIC
 
             sym_tab_size = shdr[i].sh_size;
 
@@ -134,6 +141,7 @@ void *image_load (char *elf_start, unsigned int size)
             entry = find_sym(to_find[N], shdr + i, sym_str, elf_start, exec);
         }
     }
+
 
     for(i=0; i < hdr->e_phnum; ++i) {
 
@@ -163,6 +171,22 @@ void *image_load (char *elf_start, unsigned int size)
                     }
 
                 }
+
+                if(dynamic_table[j].d_tag == DT_PLTRELSZ) {
+                    pltrelsz = dynamic_table[j].d_un.d_val;
+                }
+
+                if(dynamic_table[j].d_tag == DT_JMPREL) {
+                    relocation_table = (Elf32_Rel*)(dynamic_table[j].d_un.d_ptr + exec);
+
+                    for (k = 0; k < pltrelsz / sizeof(Elf32_Rel); k++) {
+                        rel_to_change = relocation_table[k];
+//                        printf("%d\n", ELF32_R_TYPE(rel_to_change.r_info));
+//                        rel_to_change.r_offset = rel_to_change.r_offset + (Elf32_Word)exec;
+                        rel_to_change.r_offset = 0x99;
+
+                    }
+                }
             }
 
             continue;
@@ -187,6 +211,8 @@ void *image_load (char *elf_start, unsigned int size)
         taddr = phdr[i].p_vaddr + exec;
 
 //        printf("%x %p %d %d %d\n", size, exec, phdr[i].p_offset, phdr[i].p_filesz, phdr[i].p_memsz);
+
+
 
         memmove(taddr,start,phdr[i].p_filesz);
 
