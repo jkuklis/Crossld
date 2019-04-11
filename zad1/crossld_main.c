@@ -338,29 +338,31 @@ __asm__ (
     "invoker_end:\n"
 );
 
-void real_invoker(const struct funcion *to_invoke) {
-    
+void real_invoker(const struct function *to_invoke) {
+    printf("hehe\n");
 }
 
 void* create_invoker(const struct function *to_invoke) {
-    size_t codelen = &invoker_end - &invoker_begin;
+    size_t code_len = &invoker_end - &invoker_begin;
     size_t struct_offset = (&invoker_struct - &invoker_begin) - 8;
     size_t handler_offset = (&invoker_handler - &invoker_begin) - 8;
 
     void* invoker;
 
-    if ((invoker = mmap(NULL, codelen,
+    if ((invoker = mmap(NULL, code_len,
                         PROT_READ | PROT_WRITE,
                         MAP_PRIVATE | MAP_ANONYMOUS | MAP_32BIT,
                         -1, 0)) == MAP_FAILED) {
         printf("Map error for invoker!\n");
     }
 
-    memcpy(invoker, &invoker_begin, codelen);
-    memcpy(invoker + struct_offset, &to_invoke, 8);
-    memcpy(invoker + handler_offset, &real_invoker, 8);
+    long long address = (long long)&real_invoker;
 
-    mprotect(invoker, codelen, PROT_READ | PROT_EXEC);
+    memcpy(invoker, &invoker_begin, code_len);
+    memcpy(invoker + struct_offset, &to_invoke, 8);
+    memcpy(invoker + handler_offset, &address, 8);
+
+    mprotect(invoker, code_len, PROT_READ | PROT_EXEC);
 
     return invoker;
 }
