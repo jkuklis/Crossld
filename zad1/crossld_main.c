@@ -296,21 +296,6 @@ __asm__ (
             "lret;\n"
         "comeback_end:\n"
 
-
-//            "movl (%esp), %edi;\n"
-//            "movl (%esp), %esi;\n"
-//            "movl (%esp), %edx;\n"
-//            "movl 16(%esp), %edx;\n"
-//            "movl 256(%esp), %edx;\n"
-//            "movl 4096(%esp), %edx;\n"
-//            "movl 4(%esp), %edi;\n"
-//            "movl 8(%esp), %esi;\n"
-//            "movl 12(%esp), %edx;\n"
-//            "movl 16(%esp), %ecx;\n"
-//            "movl 20(%esp), %r8d;\n"
-//            "movl 24(%esp), %r9d;\n"
-//            "movl 28(%esp), %r10d;\n"
-//            "movl %r10d, 8(%esp);\n"
 );
 
 
@@ -402,27 +387,313 @@ void* create_invoker(const struct function *to_invoke) {
 }
 
 
-int crossld_start(const char *filename, const struct function *funcs, int nfuncs) {
-    do_all(filename, funcs, nfuncs);
-
-    void* trampolines_addresses[nfuncs];
-
+void make_trampolines(const struct function *funcs, int nfuncs, void** trampolines_addresses) {
     for (int i = 0; i < nfuncs; ++i) {
 
         void *invoker = create_invoker(&funcs[i]);
 
         trampolines_addresses[i] = create_trampoline(invoker);
     }
+}
 
+
+
+int is_image_valid(Elf32_Ehdr *hdr)
+{
+    return 1;
+}
+
+
+void relocate(Elf32_Shdr* shdr, const Elf32_Sym* syms, const char* strings, const char* src)
+{
+    Elf32_Rel* rel = (Elf32_Rel*)(src + shdr->sh_offset);
+    int j;
+    void* resolved;
+    for(j = 0; j < shdr->sh_size / sizeof(Elf32_Rel); j += 1) {
+        const char* sym = strings + syms[ELF32_R_SYM(rel[j].r_info)].st_name;
+        switch(ELF32_R_TYPE(rel[j].r_info)) {
+            case R_386_JMP_SLOT:
+            case R_386_GLOB_DAT:
+                resolved = 0x1234599;
+                *(Elf32_Word*)rel[j].r_offset = (Elf32_Word)(long)resolved;
+//                *(Elf32_Word*)(void*)(long long)(rel[j].r_offset) = (Elf32_Word)resolved;
+                break;
+            default:
+                break;
+        }
+    }
+}
+
+void* find_sym(const char* name, Elf32_Shdr* shdr, const char* strings, const char* src)
+{
+    Elf32_Sym* syms = (Elf32_Sym*)(src + shdr->sh_offset);
+    int i;
+    for(i = 0; i < shdr->sh_size / sizeof(Elf32_Sym); i += 1) {
+        if (strcmp(name, strings + syms[i].st_name) == 0) {
+            return (void*)(long long)syms[i].st_value;
+        }
+    }
+    return NULL;
+}
+
+
+void *image_load (char *elf_start, const struct function *funcs, int nfuncs)
+{
+    Elf32_Ehdr      *hdr     = NULL;
+    Elf32_Phdr      *phdr    = NULL;
+    Elf32_Shdr      *shdr    = NULL;
+    Elf32_Sym       *syms    = NULL;
+    char            *strings = NULL;
+    char            *sym_str = NULL;
+    char            *start   = NULL;
+    char            *taddr   = NULL;
+    void            *entry   = NULL;
+    int i = 0;
+    int j = 0;
+    int k = 0;
+
+    hdr = (Elf32_Ehdr *) elf_start;
+
+    if(!is_image_valid(hdr)) {
+        printf("image_load:: invalid ELF image\n");
+        return 0;
+    }
+
+    phdr = (Elf32_Phdr *)(elf_start + hdr->e_phoff);
+
+    Elf32_Dyn* dynamic_table = 0;
+
+    Elf32_Sym* symbols_table = 0;
+
+    Elf32_Rel* relocation_table = 0;
+
+    shdr = (Elf32_Shdr *)(elf_start + hdr->e_shoff);
+
+    Elf32_Rel rel_to_change;
+
+    int sym_tab_size = 0;
+
+    int pltrelsz = 0;
+
+    char* to_find[] = {"_start", "main"};
+
+    for(i=0; i < hdr->e_shnum; ++i) {
+        if (shdr[i].sh_type == SHT_DYNSYM) {
+            syms = (Elf32_Sym*)(elf_start + shdr[i].sh_offset);
+            strings = elf_start + shdr[shdr[i].sh_link].sh_offset;
+//          strings can also be taken from _DYNAMIC
+
+            sym_tab_size = shdr[i].sh_size;
+
+        }
+    }
+
+
+    for(i=0; i < hdr->e_phnum; ++i) {
+
+        if(phdr[i].p_type == PT_DYNAMIC) {
+
+            dynamic_table = (Elf32_Dyn*)((void*)(long long)phdr[i].p_vaddr);
+
+            for (j=0; j < phdr[i].p_filesz / sizeof(Elf32_Dyn); j++) {
+                if(dynamic_table[j].d_tag == DT_SYMTAB) {
+                    symbols_table = (Elf32_Sym*)((void*)(long long)dynamic_table[j].d_un.d_ptr);
+
+                    for (k = 0; k < sym_tab_size / sizeof(Elf32_Sym); k++) {
+
+                        if (strcmp("print", strings + symbols_table[k].st_name) == 0) {
+                            *(Elf32_Word*)((void*)(long long)(dynamic_table[j].d_un.d_ptr + k * sizeof(Elf32_Sym) + 4)) = (Elf32_Word)0x99;
+                        }
+                        if (strcmp("exit_", strings + symbols_table[k].st_name) == 0) {
+                            symbols_table[k].st_value = (Elf32_Word)0x99;
+                        }
+                    }
+                }
+
+                if(dynamic_table[j].d_tag == DT_PLTRELSZ) {
+                    pltrelsz = dynamic_table[j].d_un.d_val;
+                }
+
+                if(dynamic_table[j].d_tag == DT_JMPREL) {
+                    relocation_table = (Elf32_Rel*)((void*)(long long)dynamic_table[j].d_un.d_ptr);
+
+                    for (k = 0; k < pltrelsz / sizeof(Elf32_Rel); k++) {
+                        rel_to_change = relocation_table[k];
+                        rel_to_change.r_offset = 0x99;
+
+                    }
+                }
+            }
+
+            continue;
+        }
+
+        if(phdr[i].p_type != PT_LOAD) {
+            continue;
+        }
+
+        if(phdr[i].p_filesz > phdr[i].p_memsz) {
+            printf("image_load:: p_filesz > p_memsz\n");
+//            munmap(exec);
+            return 0;
+        }
+        if(!phdr[i].p_filesz) {
+            continue;
+        }
+
+        // p_filesz can be smaller than p_memsz,
+        // the difference is zeroe'd out.
+        start = elf_start + phdr[i].p_offset;
+        taddr = (void*)(long long)phdr[i].p_vaddr;
+
+        char *aligned = (char*)(((long long)taddr >> 12) << 12);
+
+        int ext_length = phdr[i].p_memsz + (taddr - aligned);
+
+        mmap(aligned, ext_length, PROT_READ | PROT_WRITE | PROT_EXEC,
+             MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+
+        memset(taddr, 0x0, ext_length);
+
+        memmove(taddr,start,phdr[i].p_filesz);
+
+    }
+
+
+    for(i=0; i < hdr->e_phnum; ++i) {
+
+        taddr = (void*)(long long)phdr[i].p_vaddr;
+
+        if(phdr[i].p_type != PT_LOAD) {
+            continue;
+        }
+
+        if (!(phdr[i].p_flags & PF_W)) {
+            // Read-only.
+            mprotect((unsigned char *) taddr,
+                     phdr[i].p_memsz,
+                     PROT_READ | PROT_WRITE);
+        }
+
+        if (phdr[i].p_flags & PF_X) {
+            // Executable.
+            mprotect((unsigned char *) taddr,
+                     phdr[i].p_memsz,
+                     PROT_EXEC | PROT_WRITE | PROT_READ);
+        }
+    }
+
+    for(i=0; i < hdr->e_shnum; ++i) {
+        if (shdr[i].sh_type == SHT_REL) {
+            relocate(shdr + i, syms, strings, elf_start);
+        }
+    }
+
+    return (void*)((long long)hdr->e_entry);
+
+}/* image_load */
+
+
+void* create_stack() {
     void *stack;
 
     int stack_size = 4 * 1024;
 
-    if ((stack = mmap(NULL, stack_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE | MAP_32BIT, -1, 0)) == MAP_FAILED)
-        printf("stack map error\n");
+    if ((stack = mmap(NULL, stack_size, PROT_READ | PROT_WRITE,
+                      MAP_ANONYMOUS | MAP_PRIVATE | MAP_32BIT, -1, 0)) == MAP_FAILED) {
+        printf("bad stack mmap\n");
+    }
 
-    stack = (void*) (((uint64_t) stack) + 4096 - 4);
+    stack = (void*) (((uint64_t) stack) + stack_size - 4);
+
+    return stack;
+}
 
 
-    return 0;
+void* program_entry(const char *filename, const struct function *funcs, int nfuncs) {
+    static char buf[4 * 1024 * 1024];
+    FILE* elf = fopen(filename, "rb");
+    fread(buf, sizeof buf, 1, elf);
+
+    return image_load(buf, funcs, nfuncs);
+}
+
+extern char switch_32;
+extern char switch_32_end;
+
+__asm__ (
+
+        "switch_32:\n"
+        ".code32\n"
+        "pushl $0x2b\n"
+        "popl %ds\n"
+        "pushl $0x2b\n"
+        "popl %es\n"
+        "jmp *%ecx\n"
+
+        ".code64\n"
+        "switch_32_end:\n"
+        ".code64\n"
+);
+
+void* generate_switch() {
+    void* switcher;
+
+    int codelen = &switch_32_end - &switch_32;
+
+    if ((switcher = mmap(NULL, codelen, PROT_READ | PROT_WRITE,
+                    MAP_ANONYMOUS | MAP_PRIVATE | MAP_32BIT, -1, 0)) == MAP_FAILED) {
+        printf("bad switch mmap\n");
+    }
+
+    memcpy(switcher, &switch_32, codelen);
+
+    mprotect(switcher, codelen, PROT_EXEC);
+
+    return switcher;
+}
+
+
+
+int crossld_start(const char *filename, const struct function *funcs, int nfuncs) {
+    void* stack = create_stack();
+    void* entry = program_entry(filename, funcs, nfuncs);
+    void* switcher = generate_switch();
+
+    void* rbx = 0, *rbp = 0, *r12 = 0, *r13 = 0, *r14 = 0, *r15 = 0, *rsp = 0, *return_addr = 0, *res = 0;
+
+    __asm__ volatile(
+            "mov %%rbx, %0;\n"
+            "mov %%rbp, %1;\n"
+            "mov %%r12, %2;\n"
+            "mov %%r13, %3;\n"
+            "mov %%r14, %4;\n"
+            "mov %%r15, %5;\n"
+            "mov %%rsp, %6;\n"
+            "movq %9, %%rsp;\n"
+            "subq $8, %%rsp;\n"
+            "movl $0x23, 4(%%rsp);\n"
+            "mov %10, %%rax;\n"
+            "movl %%eax, (%%rsp);\n"
+            "mov %11, %%rcx;\n"
+            "lea 8(%%rip), %%rax;\n" // lea go get next instruction after lret
+            "mov %%rax, %7;\n"
+            "lret;\n"
+            "mov %0, %%rbx;\n"
+            "mov %2, %%r12;\n"
+            "mov %3, %%r13;\n"
+            "mov %4, %%r14;\n"
+            "mov %5, %%r15;\n"
+            "mov %6, %%rsp;\n"
+            "mov %%rax, %8;\n"
+        : "=m" (rbx), "=m" (rbp), "=m" (r12), "=m" (r13),
+                "=m" (r14), "=m" (r15), "=m" (rsp), "=m" (return_addr), "=m" (res)
+        : "g" (stack), "g" (switcher), "g" (entry)
+        : "cc", "memory", "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+                "rsp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
+    );
+
+
+
+    return *(int*)res;
 }

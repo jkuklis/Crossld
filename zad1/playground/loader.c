@@ -6,18 +6,9 @@
 #include <elf.h>
 #include <unistd.h>
 
-void printk(const char* msg)
-{
-    fputs(msg, stderr);
-}
-
 int is_image_valid(Elf32_Ehdr *hdr)
 {
     return 1;
-}
-
-void gizmo() {
-    printf("lol\n");
 }
 
 void *resolve(const char* sym)
@@ -47,7 +38,7 @@ void relocate(Elf32_Shdr* shdr, const Elf32_Sym* syms, const char* strings, cons
                 resolved = (void*)0x12345;
                 Elf32_Word* toWhere = (Elf32_Word*)(dst + rel[j].r_offset);
 //                resolved = rel[j].r_offset;
-                *toWhere =  (Elf32_Word)resolved;
+                *toWhere =  *(Elf32_Word*)resolved;
                 break;
             default:
 //                printf("%s\n", sym);

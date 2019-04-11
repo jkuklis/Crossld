@@ -12,7 +12,7 @@ int main() {
 		{"print", print_types, 1, TYPE_VOID, print},
 	};
 	
-	 res = crossld_start("/home/jk/studies/zso/workspace/zad1/z1-hello-world/hello/hello-32", funcs, 1);
+	 res = crossld_start("/home/jk/studies/zso/workspace/zad1/hello/hello-32", funcs, 1);
 	 printf("Result: %d\n", res);
 	 return res;
 }
