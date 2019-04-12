@@ -202,6 +202,11 @@ void real_invoker(const struct function *to_invoke) {
 
     void* arg_val = 0;
 
+    __asm__ volatile(
+        "movq %%rdi, %%r12\n"
+        "movq %%rsi, %%r13\n"
+        ::
+    );
 
     for (int i = 0; i < to_invoke->nargs; i++) {
         enum type arg_type = to_invoke->args[i];
@@ -289,11 +294,50 @@ void real_invoker(const struct function *to_invoke) {
         }
     }
 
+    void* returned;
+
     __asm__ volatile (
-        "call *%0\n"
-        :: "g" (to_invoke->code)
+        "call *%1\n"
+        "movq %%rax, %0"
+        : "=m" (returned)
+        : "g" (to_invoke->code)
     );
+
+    switch(to_invoke->result) {
+        case TYPE_INT:
+        case TYPE_LONG:
+        case TYPE_UNSIGNED_INT:
+        case TYPE_UNSIGNED_LONG:
+        case TYPE_PTR:
+            if (*(unsigned long*) returned > UINT32_MAX) {
+                // TODO
+            } else {
+                __asm__ volatile (
+                    "movq %0, %%rax\n"
+                    :: "g" (returned)
+                );
+            }
+            break;
+
+        case TYPE_LONG_LONG:
+        case TYPE_UNSIGNED_LONG_LONG:
+            __asm__ volatile (
+                "movq %0, %%rcx\n"
+                "movl %%ecx, %%eax\n"
+                "sar $8, %%rcx\n"
+                "movl %%ecx, %%edx\n"
+                :: "g" (returned)
+            );
+            break;
+
+        default:
+            break;
+
+    }
+
     __asm__ volatile (
+        "movq %%r12, %%rdi\n"
+        "movq %%r13, %%rsi\n"
         "movl $0x23, 4(%%rsp);\n"
         "movq %0, %%rcx;\n"
         "movl %%ecx, (%%rsp);\n"
