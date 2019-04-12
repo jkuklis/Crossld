@@ -1,4 +1,4 @@
 void print(char *str) {}
-_Noreturn void exit_(int status) {
+_Noreturn void exit(int status) {
     __builtin_unreachable();
 }

@@ -60,7 +60,7 @@ void* find_sym(const char* name, Elf32_Shdr* shdr, const char* strings, const ch
     return NULL;
 }
 
-const int N = 0;
+const int N = 1;
 
 void *image_load (char *elf_start, unsigned int size)
 {
@@ -81,7 +81,6 @@ void *image_load (char *elf_start, unsigned int size)
     hdr = (Elf32_Ehdr *) elf_start;
 
     if(!is_image_valid(hdr)) {
-        printk("image_load:: invalid ELF image\n");
         return 0;
     }
 
