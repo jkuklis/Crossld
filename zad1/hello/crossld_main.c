@@ -83,8 +83,7 @@ __asm__ (
             "pushl $0x2b\n"
             "popl %es\n"
             "addl $8, %ebp\n"
-
-            "leave\n"
+            "movl %ebp, %esp\n"
             "ret\n"
 
         ".code64\n"
@@ -242,6 +241,8 @@ void real_invoker(const struct function *to_invoke) {
         args[i] = arg_val;
     }
 
+    printf("%s\n", to_invoke->name);
+
     for (int i = 0; i < to_invoke->nargs; i++) {
         switch(i) {
             case 0:
@@ -292,7 +293,6 @@ void real_invoker(const struct function *to_invoke) {
         :: "g" (to_invoke->code)
     );
     __asm__ volatile (
-        "subq $8, %%rsp\n"
         "movl $0x23, 4(%%rsp);\n"
         "movq %0, %%rcx;\n"
         "movl %%ecx, (%%rsp);\n"
@@ -300,8 +300,6 @@ void real_invoker(const struct function *to_invoke) {
         :
         : "g" (switcher)
     );
-
-//    printf("%s\n", to_invoke->name);
 
 }
 

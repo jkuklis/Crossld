@@ -82,6 +82,7 @@ __asm__ (
             "popl %ds\n"
             "pushl $0x2b\n"
             "popl %es\n"
+            "movl -0x8(%ebp), %ebx\n"
             "addl $8, %ebp\n"
             "movl %ebp, %esp\n"
             "ret\n"
@@ -241,6 +242,8 @@ void real_invoker(const struct function *to_invoke) {
         args[i] = arg_val;
     }
 
+    printf("%s\n", to_invoke->name);
+
     for (int i = 0; i < to_invoke->nargs; i++) {
         switch(i) {
             case 0:
@@ -298,8 +301,6 @@ void real_invoker(const struct function *to_invoke) {
         :
         : "g" (switcher)
     );
-
-//    printf("%s\n", to_invoke->name);
 
 }
 
