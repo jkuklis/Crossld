@@ -42,6 +42,95 @@ int do_all(const char *filename, const struct function *funcs, int nfuncs) {
     }
 }
 
+
+extern char switch_32;
+extern char switch_32_ret;
+extern char switch_32_end;
+extern char just_ret;
+extern char after_ret;
+
+extern char switch_32_2;
+extern char switch_32_end_2;
+
+
+__asm__ (
+
+        "switch_32:\n"
+        ".code32\n"
+            "pushl $0x2b\n"
+            "popl %ds\n"
+            "pushl $0x2b\n"
+            "popl %es\n"
+        "switch_32_ret:"
+            "jmp *%ecx\n"
+
+        ".code64\n"
+        "switch_32_end:\n"
+);
+
+__asm__ (
+        "just_ret:\n"
+            "ret\n"
+        "after_ret:\n"
+);
+
+__asm__ (
+
+        "switch_32_2:\n"
+        ".code32\n"
+            "pushl $0x2b\n"
+            "popl %ds\n"
+            "pushl $0x2b\n"
+            "popl %es\n"
+            "addl $8, %ebp\n"
+
+            "leave\n"
+            "ret\n"
+
+        ".code64\n"
+        "switch_32_end_2:\n"
+);
+
+
+void* generate_switch() {
+    void* switcher;
+
+    int code_len = &switch_32_end - &switch_32;
+
+    if ((switcher = mmap(NULL, code_len, PROT_READ | PROT_WRITE,
+                         MAP_ANONYMOUS | MAP_PRIVATE | MAP_32BIT, -1, 0)) == MAP_FAILED) {
+        printf("bad switch mmap\n");
+    }
+
+    memcpy(switcher, &switch_32, code_len);
+
+    mprotect(switcher, code_len, PROT_EXEC);
+
+    return switcher;
+}
+
+void* switcher_64() {
+    void* returner;
+
+    int len_switch = &switch_32_end_2 - &switch_32_2;
+    int len_ret = 0;
+//    int len_ret = &after_ret - &just_ret;
+    int code_len = len_switch + len_ret;
+
+    if ((returner = mmap(NULL, code_len, PROT_READ | PROT_WRITE,
+                         MAP_ANONYMOUS | MAP_PRIVATE | MAP_32BIT, -1, 0)) == MAP_FAILED) {
+        printf("bad switch mmap\n");
+    }
+
+    memcpy(returner, &switch_32_2, len_switch);
+//    memcpy(returner + len_switch, &just_ret, len_ret);
+
+    mprotect(returner, code_len, PROT_EXEC);
+
+    return returner;
+}
+
+
 extern char trampoline_begin;
 extern char trampoline_fun_ptr;
 extern char trampoline_end;
@@ -54,6 +143,8 @@ __asm__ (
             "movl $0, %eax;\n"         // move function pointer to be invoked
         "trampoline_fun_ptr:\n"
             "movl %eax, (%esp);\n"
+//            "movl $0, %ecx\n"
+//            "jmp *%ecx\n"
             "lret;\n"
             ".code64\n"
         "trampoline_end:\n"
@@ -104,9 +195,12 @@ __asm__ (
 void real_invoker(const struct function *to_invoke) {
     void *args[to_invoke->nargs];
 
-    size_t stack_position = 12;
+    void* switcher = switcher_64();
 
-    char* arg_val = 0;
+    size_t stack_position = 12;
+    size_t args_offset = 8;
+
+    void* arg_val = 0;
 
 
     for (int i = 0; i < to_invoke->nargs; i++) {
@@ -121,7 +215,6 @@ void real_invoker(const struct function *to_invoke) {
             case TYPE_UNSIGNED_INT:
             case TYPE_UNSIGNED_LONG:
             case TYPE_PTR:
-                printf("lol\n");
                 __asm__ volatile (
                     "movq %1, %%rax\n"
                     "lea (%%rbp, %%rax, 1), %%rax\n"
@@ -132,13 +225,83 @@ void real_invoker(const struct function *to_invoke) {
                 );
                 stack_position += 4;
                 break;
-            default:
+            case TYPE_LONG_LONG:
+            case TYPE_UNSIGNED_LONG_LONG:
+                __asm__ volatile (
+                    "movq %1, %%rax\n"
+                    "lea (%%rbp, %%rax, 1), %%rax\n"
+                    "movq (%%rax), %%rax\n"
+                    "movq %%rax, %0\n"
+                    : "=m" (arg_val)
+                    : "g" (stack_position)
+                );
+                stack_position += 8;
                 break;
         }
 
+        args[i] = arg_val;
     }
 
-    printf("%s\n", to_invoke->name);
+    for (int i = 0; i < to_invoke->nargs; i++) {
+        switch(i) {
+            case 0:
+                __asm__ volatile (
+                  "movq %0, %%rdi"
+                  :: "g" (args[i])
+                );
+            case 1:
+                __asm__ volatile (
+                    "movq %0, %%rsi"
+                :: "g" (args[i])
+                );
+            case 2:
+                __asm__ volatile (
+                    "movq %0, %%rdx"
+                :: "g" (args[i])
+                );
+            case 3:
+                __asm__ volatile (
+                    "movq %0, %%rcx"
+                :: "g" (args[i])
+                );
+            case 4:
+                __asm__ volatile (
+                    "movq %0, %%r8"
+                :: "g" (args[i])
+                );
+            case 5:
+                __asm__ volatile (
+                    "movq %0, %%r9"
+                :: "g" (args[i])
+                );
+            default:
+                __asm__ volatile (
+                    "movq %0, %%r10\n"
+                    "movq %1, %%rax\n"
+                    "lea (%%rsp, %%rax, 1), %%rax\n"
+                    "movl %%r10d, (%%rax)\n"
+                : "=m" (args[i])
+                : "g" (args_offset)
+                );
+
+        }
+    }
+
+    __asm__ volatile (
+        "call *%0\n"
+        :: "g" (to_invoke->code)
+    );
+    __asm__ volatile (
+        "subq $8, %%rsp\n"
+        "movl $0x23, 4(%%rsp);\n"
+        "movq %0, %%rcx;\n"
+        "movl %%ecx, (%%rsp);\n"
+        "lret\n"
+        :
+        : "g" (switcher)
+    );
+
+//    printf("%s\n", to_invoke->name);
 
 }
 
@@ -182,16 +345,14 @@ struct function default_exit_struct(void *exit_hook) {
 }
 
 void relocate(Elf32_Shdr* shdr, const Elf32_Sym* syms, const char* strings, const char* src,
-        const struct function *funcs, int nfuncs, struct function* exit_struct)
+        const struct function *funcs, int nfuncs, const struct function* exit_struct)
 {
     Elf32_Rel* rel = (Elf32_Rel*)(src + shdr->sh_offset);
     int j;
     void* invoker;
     void* trampoline;
     for(j = 0; j < shdr->sh_size / sizeof(Elf32_Rel); j += 1) {
-
         const char* sym = strings + syms[ELF32_R_SYM(rel[j].r_info)].st_name;
-
 
         switch(ELF32_R_TYPE(rel[j].r_info)) {
             case R_386_JMP_SLOT:
@@ -292,8 +453,6 @@ void *image_load (char *elf_start, const struct function *funcs, int nfuncs)
 
                     for (k = 0; k < sym_tab_size / sizeof(Elf32_Sym); k++) {
 
-//                        printf("%s\n", strings + symbols_table[k].st_name);
-
                         if (strcmp("print", strings + symbols_table[k].st_name) == 0) {
                             *(Elf32_Word*)((void*)(long long)(dynamic_table[j].d_un.d_ptr + k * sizeof(Elf32_Sym) + 4)) = (Elf32_Word)0x99;
                         }
@@ -377,13 +536,13 @@ void *image_load (char *elf_start, const struct function *funcs, int nfuncs)
         }
     }
 
-    struct function exit_struct;
+    struct function exit_struct[1];
 
-    exit_struct = default_exit_struct(printf);
+    exit_struct[0] = default_exit_struct(printf);
 
     for(i=0; i < hdr->e_shnum; ++i) {
         if (shdr[i].sh_type == SHT_REL) {
-            relocate(shdr + i, syms, strings, elf_start, funcs, nfuncs, &exit_struct);
+            relocate(shdr + i, syms, strings, elf_start, funcs, nfuncs, exit_struct);
         }
     }
 
@@ -414,41 +573,6 @@ void* program_entry(const char *filename, const struct function *funcs, int nfun
     fread(buf, sizeof buf, 1, elf);
 
     return image_load(buf, funcs, nfuncs);
-}
-
-extern char switch_32;
-extern char switch_32_end;
-
-__asm__ (
-
-        "switch_32:\n"
-        ".code32\n"
-        "pushl $0x2b\n"
-        "popl %ds\n"
-        "pushl $0x2b\n"
-        "popl %es\n"
-        "jmp *%ecx\n"
-
-        ".code64\n"
-        "switch_32_end:\n"
-        ".code64\n"
-);
-
-void* generate_switch() {
-    void* switcher;
-
-    int codelen = &switch_32_end - &switch_32;
-
-    if ((switcher = mmap(NULL, codelen, PROT_READ | PROT_WRITE,
-                    MAP_ANONYMOUS | MAP_PRIVATE | MAP_32BIT, -1, 0)) == MAP_FAILED) {
-        printf("bad switch mmap\n");
-    }
-
-    memcpy(switcher, &switch_32, codelen);
-
-    mprotect(switcher, codelen, PROT_EXEC);
-
-    return switcher;
 }
 
 //extern char exit_custom;
@@ -519,3 +643,5 @@ int crossld_start(const char *filename, const struct function *funcs, int nfuncs
 
     return *(int*)res;
 }
+
+// exit ma zly arg pointer

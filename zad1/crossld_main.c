@@ -49,6 +49,10 @@ extern char switch_32_end;
 extern char just_ret;
 extern char after_ret;
 
+extern char switch_32_2;
+extern char switch_32_end_2;
+
+
 __asm__ (
 
         "switch_32:\n"
@@ -70,6 +74,23 @@ __asm__ (
         "after_ret:\n"
 );
 
+__asm__ (
+
+        "switch_32_2:\n"
+        ".code32\n"
+            "pushl $0x2b\n"
+            "popl %ds\n"
+            "pushl $0x2b\n"
+            "popl %es\n"
+            "addl $8, %ebp\n"
+            "movl %ebp, %esp\n"
+            "ret\n"
+
+        ".code64\n"
+        "switch_32_end_2:\n"
+);
+
+
 void* generate_switch() {
     void* switcher;
 
@@ -87,11 +108,12 @@ void* generate_switch() {
     return switcher;
 }
 
-void switcher_64() {
+void* switcher_64() {
     void* returner;
 
-    int len_switch = &switch_32_ret - &switch_32;
-    int len_ret = &after_ret - &just_ret;
+    int len_switch = &switch_32_end_2 - &switch_32_2;
+    int len_ret = 0;
+//    int len_ret = &after_ret - &just_ret;
     int code_len = len_switch + len_ret;
 
     if ((returner = mmap(NULL, code_len, PROT_READ | PROT_WRITE,
@@ -99,17 +121,12 @@ void switcher_64() {
         printf("bad switch mmap\n");
     }
 
-    memcpy(returner, &switch_32, len_switch);
-    memcpy(returner + len_switch, &just_ret, len_ret);
+    memcpy(returner, &switch_32_2, len_switch);
+//    memcpy(returner + len_switch, &just_ret, len_ret);
 
     mprotect(returner, code_len, PROT_EXEC);
 
-    __asm__ volatile(
-        "pushq $0x33\n"
-        "pushq %0\n"
-        "lret\n"
-        :: "g" (returner)
-    );
+    return returner;
 }
 
 
@@ -125,6 +142,8 @@ __asm__ (
             "movl $0, %eax;\n"         // move function pointer to be invoked
         "trampoline_fun_ptr:\n"
             "movl %eax, (%esp);\n"
+//            "movl $0, %ecx\n"
+//            "jmp *%ecx\n"
             "lret;\n"
             ".code64\n"
         "trampoline_end:\n"
@@ -174,6 +193,8 @@ __asm__ (
 
 void real_invoker(const struct function *to_invoke) {
     void *args[to_invoke->nargs];
+
+    void* switcher = switcher_64();
 
     size_t stack_position = 12;
     size_t args_offset = 8;
@@ -267,14 +288,15 @@ void real_invoker(const struct function *to_invoke) {
 
     __asm__ volatile (
         "call *%0\n"
-        :
-        : "g" (to_invoke->code), "g" (switcher_64)
+        :: "g" (to_invoke->code)
     );
-
     __asm__ volatile (
-        "jmp %0\n"
+        "movl $0x23, 4(%%rsp);\n"
+        "movq %0, %%rcx;\n"
+        "movl %%ecx, (%%rsp);\n"
+        "lret\n"
         :
-        : "g" (switcher_64)
+        : "g" (switcher)
     );
 
 //    printf("%s\n", to_invoke->name);
