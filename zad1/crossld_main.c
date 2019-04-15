@@ -293,14 +293,18 @@ void real_invoker(const struct function *to_invoke) {
         : "g" (to_invoke->code)
     );
 
+    unsigned long long returned_val = (unsigned long long)returned;
+
     switch(to_invoke->result) {
         case TYPE_INT:
         case TYPE_LONG:
         case TYPE_UNSIGNED_INT:
         case TYPE_UNSIGNED_LONG:
         case TYPE_PTR:
-            if (*(unsigned long*) returned > UINT32_MAX) {
+            if (returned_val > UINT32_MAX) {
                 // TODO
+                // put address of exit into global state?
+                abort();
             } else {
                 __asm__ volatile (
                     "movq %0, %%rax\n"
@@ -390,11 +394,17 @@ void relocate(Elf32_Shdr* shdr, const Elf32_Sym* syms, const char* strings, cons
                     invoker = create_invoker(exit_struct);
 
                 } else {
+                    int found = 0;
                     for (int i = 0; i < nfuncs; i++) {
                         if (strcmp(sym, funcs[i].name) == 0) {
                             invoker = create_invoker(funcs + i);
+                            found = 1;
                             break;
                         }
+                    }
+                    if (!found) {
+                        // TODO
+                        abort();
                     }
                 }
                 trampoline = create_trampoline(invoker);
@@ -531,7 +541,7 @@ void *image_load (char *elf_start, const struct function *funcs, int nfuncs, con
 
         int ext_length = phdr[i].p_memsz + (taddr - aligned);
 
-        mmap(aligned, ext_length, PROT_READ | PROT_WRITE | PROT_EXEC,
+        mmap(aligned, ext_length, PROT_READ | PROT_WRITE,
              MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
 
         memset(taddr, 0x0, ext_length);
@@ -553,14 +563,14 @@ void *image_load (char *elf_start, const struct function *funcs, int nfuncs, con
             // Read-only.
             mprotect((unsigned char *) taddr,
                      phdr[i].p_memsz,
-                     PROT_READ | PROT_WRITE);
+                     PROT_READ);
         }
 
         if (phdr[i].p_flags & PF_X) {
             // Executable.
             mprotect((unsigned char *) taddr,
                      phdr[i].p_memsz,
-                     PROT_EXEC | PROT_WRITE | PROT_READ);
+                     PROT_EXEC);
         }
     }
 
@@ -578,7 +588,7 @@ void *image_load (char *elf_start, const struct function *funcs, int nfuncs, con
 void* create_stack() {
     void *stack;
 
-    int stack_size = 4 * 1024;
+    int stack_size = 2 * 1024 * 1024;
 
     if ((stack = mmap(NULL, stack_size, PROT_READ | PROT_WRITE,
                       MAP_ANONYMOUS | MAP_PRIVATE | MAP_32BIT, -1, 0)) == MAP_FAILED) {
@@ -642,8 +652,6 @@ static void *return_addr, *res, *rbp;
 
 int crossld_start(const char *filename, const struct function *funcs, int nfuncs) {
 //    void *return_addr, *res, *rbp;
-
-
 
     void* stack = create_stack();
 
