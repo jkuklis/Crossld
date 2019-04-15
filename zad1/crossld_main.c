@@ -237,7 +237,7 @@ void real_invoker(const struct function *to_invoke) {
         args[i] = arg_val;
     }
 
-    printf("%s\n", to_invoke->name);
+//    printf("%s\n", to_invoke->name);
 
     for (int i = 0; i < to_invoke->nargs; i++) {
         switch(i) {
@@ -606,6 +606,7 @@ extern char exit_custom_end;
 
 __asm__ (
     "exit_custom:\n"
+        "movq %rdi, %rax\n"
         "movabs $0, %rcx\n"
     "exit_argument:\n"
         "movq (%rcx), %rcx\n"

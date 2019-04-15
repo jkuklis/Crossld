@@ -636,8 +636,11 @@ void* generate_exit(long long return_address) {
 }
 
 
+static void *return_addr, *res, *rbp;
+
+
 int crossld_start(const char *filename, const struct function *funcs, int nfuncs) {
-    void *return_addr, *res, *rbp;
+//    void *return_addr, *res, *rbp;
 
 
 
@@ -665,6 +668,7 @@ int crossld_start(const char *filename, const struct function *funcs, int nfuncs
             "mov %%rax, %0\n"
             "lret\n"
             "movq %%rax, %1\n"
+            "movq %2, %%rbp\n"
             "lea -0x28(%%rbp), %%rsp\n"
 //            "movq (%%rbp), %%rsp\n"
             "pop %%rbx\n"
