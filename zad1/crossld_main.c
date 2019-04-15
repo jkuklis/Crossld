@@ -696,7 +696,6 @@ int crossld_start(const char *filename, const struct function *funcs, int nfuncs
             "movq %%rax, %1\n"
             "movq %2, %%rbp\n"
             "lea -0x28(%%rbp), %%rsp\n"
-//            "movq (%%rbp), %%rsp\n"
             "pop %%rbx\n"
             "pop %%r12\n"
             "pop %%r13\n"
