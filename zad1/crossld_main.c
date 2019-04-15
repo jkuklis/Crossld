@@ -182,10 +182,10 @@ extern char invoker_begin;
 
 __asm__ (
     "invoker_begin:\n"
+        "movq %rdi, %r12\n"
+        "movq %rsi, %r13\n"
         "movabs $0, %rdi\n"
     "invoker_struct:\n"
-        "movabs $0, %rsi\n"
-    "invoker_args:\n"
         "movabs $0, %rax\n"
     "invoker_handler:\n"
         "jmp *%rax\n"
@@ -201,12 +201,6 @@ void real_invoker(const struct function *to_invoke) {
     size_t args_offset = 8;
 
     void* arg_val = 0;
-
-    __asm__ volatile(
-        "movq %%rdi, %%r12\n"
-        "movq %%rsi, %%r13\n"
-        ::
-    );
 
     for (int i = 0; i < to_invoke->nargs; i++) {
         enum type arg_type = to_invoke->args[i];
@@ -381,12 +375,6 @@ int is_image_valid(Elf32_Ehdr *hdr)
 }
 
 
-struct function default_exit_struct(void *exit_hook) {
-    enum type exit_types[] = {TYPE_INT};
-    struct function exit_struct = {"exit", exit_types, 1, TYPE_VOID, exit_hook};
-    return exit_struct;
-}
-
 void relocate(Elf32_Shdr* shdr, const Elf32_Sym* syms, const char* strings, const char* src,
         const struct function *funcs, int nfuncs, const struct function* exit_struct)
 {
@@ -404,7 +392,8 @@ void relocate(Elf32_Shdr* shdr, const Elf32_Sym* syms, const char* strings, cons
 
                 if (strcmp(sym, "exit") == 0) {
                     invoker = create_invoker(exit_struct);
-                    } else {
+
+                } else {
                     for (int i = 0; i < nfuncs; i++) {
                         if (strcmp(sym, funcs[i].name) == 0) {
                             invoker = create_invoker(funcs + i);
@@ -434,7 +423,7 @@ void* find_sym(const char* name, Elf32_Shdr* shdr, const char* strings, const ch
 }
 
 
-void *image_load (char *elf_start, const struct function *funcs, int nfuncs)
+void *image_load (char *elf_start, const struct function *funcs, int nfuncs, const struct function *exit_struct)
 {
     Elf32_Ehdr      *hdr     = NULL;
     Elf32_Phdr      *phdr    = NULL;
@@ -579,10 +568,6 @@ void *image_load (char *elf_start, const struct function *funcs, int nfuncs)
         }
     }
 
-    struct function exit_struct[1];
-
-    exit_struct[0] = default_exit_struct(printf);
-
     for(i=0; i < hdr->e_shnum; ++i) {
         if (shdr[i].sh_type == SHT_REL) {
             relocate(shdr + i, syms, strings, elf_start, funcs, nfuncs, exit_struct);
@@ -610,46 +595,65 @@ void* create_stack() {
 }
 
 
-void* program_entry(const char *filename, const struct function *funcs, int nfuncs) {
+void* program_entry(const char* filename, const struct function* funcs, int nfuncs, const struct function* exit_struct) {
     static char buf[4 * 1024 * 1024];
     FILE* elf = fopen(filename, "rb");
     fread(buf, sizeof buf, 1, elf);
 
-    return image_load(buf, funcs, nfuncs);
+    return image_load(buf, funcs, nfuncs, exit_struct);
 }
 
-//extern char exit_custom;
-//extern char exit_argument;
-//extern char exit_custom_end;
+extern char exit_custom;
+extern char exit_argument;
+extern char exit_custom_end;
 
-//
-//void generate_exit() {
-//    void* real_exit;
-//
-//    void* status;
-//
-//    __asm__ volatile (
-//        "exit_custom:\n"
-//        ".code32\n"
-//        "mov 4(%%esp), %0\n"
-//        "pushl $0x33\n"
-//        "pushl %1\n"
-//        "lret\n"
-//        ".code64\n"
-//        "exit_custom_end:\n"
-//        : "=m" (status)
-//        : "g" (real_exit)
-//        :
-//    );
-//}
+
+__asm__ (
+    "exit_custom:\n"
+        "movabs $0, %rcx\n"
+    "exit_argument:\n"
+        "movq (%rcx), %rcx\n"
+        "jmp *%rcx\n"
+    "exit_custom_end:\n"
+);
+
+
+void* generate_exit(long long return_address) {
+    size_t code_len = &exit_custom_end - &exit_custom;
+    size_t argument_offset = (&exit_argument - &exit_custom) - 8;
+
+    void* exit_fun;
+
+    if ((exit_fun = mmap(NULL, code_len,
+                        PROT_READ | PROT_WRITE,
+                        MAP_PRIVATE | MAP_ANONYMOUS,
+                        -1, 0)) == MAP_FAILED) {
+        printf("Map error for exit!\n");
+    }
+
+    memcpy(exit_fun, &exit_custom, code_len);
+    memcpy(exit_fun + argument_offset, &return_address, 8);
+
+    mprotect(exit_fun, code_len, PROT_READ | PROT_EXEC);
+
+    return exit_fun;
+}
 
 
 int crossld_start(const char *filename, const struct function *funcs, int nfuncs) {
-    void* stack = create_stack();
-    void* entry = program_entry(filename, funcs, nfuncs);
-    void* switcher = generate_switch();
-
     void* rbx = 0, *rbp = 0, *r12 = 0, *r13 = 0, *r14 = 0, *r15 = 0, *rsp = 0, *return_addr = 0, *res = 0;
+
+    void* stack = create_stack();
+
+    long long address = (long long)&return_addr;
+
+    void* exit_fun = generate_exit(address);
+
+    enum type exit_types[] = {TYPE_INT};
+    struct function exit_struct = {"exit", exit_types, 1, TYPE_VOID, exit_fun};
+
+    void* entry = program_entry(filename, funcs, nfuncs, &exit_struct);
+    void* switcher = generate_switch();
 
     __asm__ volatile(
             "mov %%rbx, %0;\n"
@@ -683,8 +687,5 @@ int crossld_start(const char *filename, const struct function *funcs, int nfuncs
     );
 
 
-
     return *(int*)res;
 }
-
-// exit ma zly arg pointer
