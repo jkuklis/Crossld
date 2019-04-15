@@ -193,23 +193,26 @@ void real_invoker(const struct function *to_invoke) {
 
     void* switcher = switcher_64();
 
-    size_t stack_position = 12;
+    size_t stack_position = 8;
     size_t args_offset = 8;
 
     void* arg_val = 0;
 
     for (int i = 0; i < to_invoke->nargs; i++) {
         enum type arg_type = to_invoke->args[i];
+        arg_val = 0;
         switch (arg_type) {
             case TYPE_VOID:
                 printf("Void argument!\n");
                 return;
+                // TODO
                 break;
             case TYPE_INT:
             case TYPE_LONG:
             case TYPE_UNSIGNED_INT:
             case TYPE_UNSIGNED_LONG:
             case TYPE_PTR:
+                stack_position += 4;
                 __asm__ volatile (
                     "movq %1, %%rax\n"
                     "lea (%%rbp, %%rax, 1), %%rax\n"
@@ -218,10 +221,10 @@ void real_invoker(const struct function *to_invoke) {
                     : "=m" (arg_val)
                     : "g" (stack_position)
                 );
-                stack_position += 4;
                 break;
             case TYPE_LONG_LONG:
             case TYPE_UNSIGNED_LONG_LONG:
+                stack_position += 4;
                 __asm__ volatile (
                     "movq %1, %%rax\n"
                     "lea (%%rbp, %%rax, 1), %%rax\n"
@@ -230,7 +233,7 @@ void real_invoker(const struct function *to_invoke) {
                     : "=m" (arg_val)
                     : "g" (stack_position)
                 );
-                stack_position += 8;
+                stack_position += 4;
                 break;
         }
 
@@ -240,48 +243,76 @@ void real_invoker(const struct function *to_invoke) {
 //    printf("%s\n", to_invoke->name);
 
     for (int i = 0; i < to_invoke->nargs; i++) {
+        long long val = (long long)args[i];
+
         switch(i) {
             case 0:
                 __asm__ volatile (
                   "movq %0, %%rdi"
-                  :: "g" (args[i])
+                  :: "g" (val)
                 );
+                break;
             case 1:
                 __asm__ volatile (
                     "movq %0, %%rsi"
-                :: "g" (args[i])
+                :: "g" (val)
                 );
+                break;
             case 2:
                 __asm__ volatile (
                     "movq %0, %%rdx"
-                :: "g" (args[i])
+                :: "g" (val)
                 );
+                break;
             case 3:
                 __asm__ volatile (
                     "movq %0, %%rcx"
-                :: "g" (args[i])
+                :: "g" (val)
                 );
+                break;
             case 4:
                 __asm__ volatile (
                     "movq %0, %%r8"
-                :: "g" (args[i])
+                :: "g" (val)
                 );
+                break;
             case 5:
                 __asm__ volatile (
                     "movq %0, %%r9"
-                :: "g" (args[i])
+                :: "g" (val)
                 );
+                break;
             default:
                 __asm__ volatile (
                     "movq %0, %%r10\n"
                     "movq %1, %%rax\n"
                     "lea (%%rsp, %%rax, 1), %%rax\n"
-                    "movl %%r10d, (%%rax)\n"
-                : "=m" (args[i])
-                : "g" (args_offset)
+                    "movq %%r10, (%%rax)\n"
+                :: "g" (val), "g" (args_offset)
                 );
+                switch (to_invoke->args[i]) {
+                    case TYPE_INT:
+                    case TYPE_LONG:
+                    case TYPE_UNSIGNED_INT:
+                    case TYPE_UNSIGNED_LONG:
+                        args_offset += 2;
+                        break;
+                    case TYPE_PTR:
+                    case TYPE_LONG_LONG:
+                    case TYPE_UNSIGNED_LONG_LONG:
+                        args_offset += 8;
+                        break;
+                }
 
         }
+    }
+
+    if (to_invoke->nargs >= 3) {
+        long long val = (long long)args[2];
+        __asm__ volatile (
+            "movq %0, %%rdx"
+            :: "g" (val)
+        );
     }
 
     void* returned;
@@ -588,7 +619,7 @@ void *image_load (char *elf_start, const struct function *funcs, int nfuncs, con
 void* create_stack() {
     void *stack;
 
-    int stack_size = 2 * 1024 * 1024;
+    int stack_size = 3 * 1024 * 1024;
 
     if ((stack = mmap(NULL, stack_size, PROT_READ | PROT_WRITE,
                       MAP_ANONYMOUS | MAP_PRIVATE | MAP_32BIT, -1, 0)) == MAP_FAILED) {
