@@ -35,7 +35,7 @@ void delete_stack(void *stack) {
 
 
 void* create_exit(long long return_address) {
-    size_t code_len = &exit_begin - &exit_end;
+    size_t code_len = &exit_end - &exit_begin;
     size_t return_addr_offset = (&exit_argument - &exit_begin) - 8;
 
     void* exit_fun;
@@ -43,7 +43,7 @@ void* create_exit(long long return_address) {
     exit_fun = mmap(NULL, code_len, PROT_READ | PROT_WRITE,
                                     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
-    if (assert_msg (exit_fun != MAP_FAILED, "Failed to create exit function!")) {
+    if (assert_msg(exit_fun != MAP_FAILED, "Failed to create exit function!")) {
         return 0;
     }
 

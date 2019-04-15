@@ -20,6 +20,178 @@ int is_image_invalid(Elf32_Ehdr *hdr) {
 }
 
 
+void called_invoker(const struct function *to_invoke) {
+//    void *args[to_invoke->nargs];
+//
+//    void* switcher = switcher_64();
+//
+//    size_t stack_position = 8;
+//    size_t args_offset = 8;
+//
+//    void* arg_val = 0;
+//
+//    void* returned;
+//
+//    for (int i = 0; i < to_invoke->nargs; i++) {
+//        enum type arg_type = to_invoke->args[i];
+//        arg_val = 0;
+//        switch (arg_type) {
+//            case TYPE_VOID:
+//                printf("Void argument!\n");
+//                return;
+//                // TODO
+//                break;
+//            case TYPE_INT:
+//            case TYPE_LONG:
+//            case TYPE_UNSIGNED_INT:
+//            case TYPE_UNSIGNED_LONG:
+//            case TYPE_PTR:
+//                stack_position += 4;
+//                __asm__ volatile (
+//                "movq %1, %%rax\n"
+//                "lea (%%rbp, %%rax, 1), %%rax\n"
+//                "movl (%%rax), %%eax\n"
+//                "movl %%eax, %0\n"
+//                : "=m" (arg_val)
+//                : "g" (stack_position)
+//                );
+//                break;
+//            case TYPE_LONG_LONG:
+//            case TYPE_UNSIGNED_LONG_LONG:
+//                stack_position += 4;
+//                __asm__ volatile (
+//                "movq %1, %%rax\n"
+//                "lea (%%rbp, %%rax, 1), %%rax\n"
+//                "movq (%%rax), %%rax\n"
+//                "movq %%rax, %0\n"
+//                : "=m" (arg_val)
+//                : "g" (stack_position)
+//                );
+//                stack_position += 4;
+//                break;
+//        }
+//
+//        args[i] = arg_val;
+//    }
+//
+////    printf("%s\n", to_invoke->name);
+//
+//    for (int i = to_invoke->nargs; i > 5; i--) {
+//        long long val = (long long)args[i];
+//        __asm__ volatile (
+//        "pushq %0\n"
+//        :: "g" (val)
+//        );
+//    }
+//
+//    for (int i = 0; i < to_invoke->nargs && i < 6; i++) {
+//        long long val = (long long)args[i];
+//
+//        switch(i) {
+//            case 0:
+//                __asm__ volatile (
+//                "movq %0, %%rdi"
+//                :: "g" (val)
+//                );
+//                break;
+//            case 1:
+//                __asm__ volatile (
+//                "movq %0, %%rsi"
+//                :: "g" (val)
+//                );
+//                break;
+//            case 2:
+//                __asm__ volatile (
+//                "movq %0, %%rdx"
+//                :: "g" (val)
+//                );
+//                break;
+//            case 3:
+//                __asm__ volatile (
+//                "movq %0, %%rcx"
+//                :: "g" (val)
+//                );
+//                break;
+//            case 4:
+//                __asm__ volatile (
+//                "movq %0, %%r8"
+//                :: "g" (val)
+//                );
+//                break;
+//            case 5:
+//                __asm__ volatile (
+//                "movq %0, %%r9"
+//                :: "g" (val)
+//                );
+//                break;
+//        }
+//    }
+//
+//    if (to_invoke->nargs >= 3) {
+//        long long val = (long long)args[2];
+//        __asm__ volatile (
+//        "movq %0, %%rdx"
+//        :: "g" (val)
+//        );
+//    }
+//
+//    __asm__ volatile (
+//    "call *%1\n"
+//    "movq %%rax, %0"
+//    : "=m" (returned)
+//    : "g" (to_invoke->code)
+//    );
+//
+//    unsigned long long returned_val = (unsigned long long)returned;
+//
+//    switch(to_invoke->result) {
+//        case TYPE_INT:
+//        case TYPE_LONG:
+//        case TYPE_UNSIGNED_INT:
+//        case TYPE_UNSIGNED_LONG:
+//        case TYPE_PTR:
+//            if (returned_val > UINT32_MAX) {
+//                // TODO
+//                // put address of exit into global state?
+//                abort();
+//            } else {
+//                __asm__ volatile (
+//                "movq %0, %%rax\n"
+//                :: "g" (returned)
+//                );
+//            }
+//            break;
+//
+//        case TYPE_LONG_LONG:
+//        case TYPE_UNSIGNED_LONG_LONG:
+//            __asm__ volatile (
+//            "movq %0, %%rcx\n"
+//            "movl %%ecx, %%eax\n"
+//            "sar $32, %%rcx\n"
+//            "movl %%ecx, %%edx\n"
+//            :: "g" (returned)
+//            );
+//            break;
+//
+//        default:
+//            break;
+//
+//    }
+//
+//    __asm__ volatile (
+//    "movq %%r12, %%rdi\n"
+//    "movq %%r13, %%rsi\n"
+//    "movl $0x23, 4(%%rsp);\n"
+//    "movq %0, %%rcx;\n"
+//    "movl %%ecx, (%%rsp);\n"
+//    "lret\n"
+//    :
+//    : "g" (switcher)
+//    );
+
+}
+
+
 void* create_invoker(const struct function* to_invoke) {
     size_t code_len = &invoker_end - &invoker_begin;
     size_t struct_offset = (&invoker_struct - &invoker_begin) - 8;
@@ -104,22 +276,16 @@ void relocate(Elf32_Shdr* shdr, const Elf32_Sym* syms, const char* strings, cons
 }
 
 
-void *image_load (char *elf_start, const struct function *funcs, int nfuncs, const struct function *exit_struct)
-{
-    Elf32_Ehdr *hdr = NULL;
-    Elf32_Phdr *phdr = NULL;
-    Elf32_Dyn* dynamic_table = 0;
-    Elf32_Sym* symbols_table = 0;
-    Elf32_Rel* relocation_table = 0;
+void *image_load (char *elf_start, const struct function *funcs, int nfuncs, void* exit_fun) {
 
+    Elf32_Ehdr  *hdr        = NULL;
+    Elf32_Phdr  *phdr       = NULL;
+    Elf32_Shdr  *shdr       = NULL;
+    Elf32_Sym   *syms       = NULL;
+    char        *strings    = NULL;
 
-    Elf32_Shdr      *shdr    = NULL;
-    Elf32_Sym       *syms    = NULL;
-    char            *strings = NULL;
-    char            *sym_str = NULL;
-    char            *start   = NULL;
-    char            *taddr   = NULL;
-    void            *entry   = NULL;
+    char        *start      = NULL;
+    char        *taddr      = NULL;
     int i = 0;
     int j = 0;
     int k = 0;
@@ -135,76 +301,26 @@ void *image_load (char *elf_start, const struct function *funcs, int nfuncs, con
 
     Elf32_Rel rel_to_change;
 
-    int sym_tab_size = 0;
-    int pltrel_size = 0;
-
-    for(i=0; i < hdr->e_shnum; ++i) {
+    for (i=0; i < hdr->e_shnum; ++i) {
         if (shdr[i].sh_type == SHT_DYNSYM) {
             syms = (Elf32_Sym*)(elf_start + shdr[i].sh_offset);
             strings = elf_start + shdr[shdr[i].sh_link].sh_offset;
-//          strings can also be taken from _DYNAMIC
-
-            sym_tab_size = shdr[i].sh_size;
-
+            // can also be taken from _DYNAMIC
         }
     }
 
-
-    for(i=0; i < hdr->e_phnum; ++i) {
-
-        if(phdr[i].p_type == PT_DYNAMIC) {
-
-            dynamic_table = (Elf32_Dyn*)((void*)(long long)phdr[i].p_vaddr);
-
-            for (j=0; j < phdr[i].p_filesz / sizeof(Elf32_Dyn); j++) {
-                if(dynamic_table[j].d_tag == DT_SYMTAB) {
-                    symbols_table = (Elf32_Sym*)((void*)(long long)dynamic_table[j].d_un.d_ptr);
-
-                    for (k = 0; k < sym_tab_size / sizeof(Elf32_Sym); k++) {
-
-                        if (strcmp("print", strings + symbols_table[k].st_name) == 0) {
-                            *(Elf32_Word*)((void*)(long long)(dynamic_table[j].d_un.d_ptr + k * sizeof(Elf32_Sym) + 4)) = (Elf32_Word)0x99;
-                        }
-                        if (strcmp("exit", strings + symbols_table[k].st_name) == 0) {
-                            symbols_table[k].st_value = (Elf32_Word)0x99;
-                        }
-                    }
-                }
-
-                if(dynamic_table[j].d_tag == DT_PLTRELSZ) {
-                    pltrel_size = dynamic_table[j].d_un.d_val;
-                }
-
-                if(dynamic_table[j].d_tag == DT_JMPREL) {
-                    relocation_table = (Elf32_Rel*)((void*)(long long)dynamic_table[j].d_un.d_ptr);
-
-                    for (k = 0; k < pltrel_size / sizeof(Elf32_Rel); k++) {
-
-                        rel_to_change = relocation_table[k];
-                        rel_to_change.r_offset = 0x99;
-
-                    }
-                }
-            }
-
+    for (i=0; i < hdr->e_phnum; ++i) {
+        if (phdr[i].p_type != PT_LOAD) {
             continue;
         }
 
-        if(phdr[i].p_type != PT_LOAD) {
-            continue;
-        }
-
-        if(phdr[i].p_filesz > phdr[i].p_memsz) {
-            printf("image_load:: p_filesz > p_memsz\n");
-//            munmap(exec);
+        if (assert_msg(phdr[i].p_filesz <= phdr[i].p_memsz, "File size bigger than memory size!")) {
             return 0;
         }
-        if(!phdr[i].p_filesz) {
+        if (!phdr[i].p_filesz) {
             continue;
         }
 
-        // p_filesz can be smaller than p_memsz,
-        // the difference is zeroe'd out.
         start = elf_start + phdr[i].p_offset;
         taddr = (void*)(long long)phdr[i].p_vaddr;
 
@@ -247,10 +363,10 @@ void *image_load (char *elf_start, const struct function *funcs, int nfuncs, con
 
     for(i=0; i < hdr->e_shnum; ++i) {
         if (shdr[i].sh_type == SHT_REL) {
-            relocate(shdr + i, syms, strings, elf_start, funcs, nfuncs, exit_struct);
+            relocate(shdr + i, syms, strings, elf_start, funcs, nfuncs, exit_fun);
         }
     }
 
     return (void*)((long long)hdr->e_entry);
 
-}/* image_load */
+} /* image_load */

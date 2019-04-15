@@ -3,6 +3,6 @@
 
 #include "crossld.h"
 
-void *image_load (char *elf_start, const struct function *funcs, int nfuncs, const struct function *exit_struct);
+void *image_load (char *elf_start, const struct function *funcs, int nfuncs, void* exit_fun);
 
 #endif //CROSSLD_LOADER_H
