@@ -114,7 +114,6 @@ void* switcher_64() {
 
     int len_switch = &switch_32_end_2 - &switch_32_2;
     int len_ret = 0;
-//    int len_ret = &after_ret - &just_ret;
     int code_len = len_switch + len_ret;
 
     if ((returner = mmap(NULL, code_len, PROT_READ | PROT_WRITE,
@@ -123,7 +122,6 @@ void* switcher_64() {
     }
 
     memcpy(returner, &switch_32_2, len_switch);
-//    memcpy(returner + len_switch, &just_ret, len_ret);
 
     mprotect(returner, code_len, PROT_EXEC);
 
@@ -143,8 +141,6 @@ __asm__ (
             "movl $0, %eax;\n"         // move function pointer to be invoked
         "trampoline_fun_ptr:\n"
             "movl %eax, (%esp);\n"
-//            "movl $0, %ecx\n"
-//            "jmp *%ecx\n"
             "lret;\n"
             ".code64\n"
         "trampoline_end:\n"
@@ -640,8 +636,13 @@ void* generate_exit(long long return_address) {
 }
 
 
+static void *return_addr, *res, *rbp;
+
+
 int crossld_start(const char *filename, const struct function *funcs, int nfuncs) {
-    void* rbx = 0, *rbp = 0, *r12 = 0, *r13 = 0, *r14 = 0, *r15 = 0, *rsp = 0, *return_addr = 0, *res = 0;
+//    void *return_addr, *res, *rbp;
+
+
 
     void* stack = create_stack();
 
@@ -656,31 +657,28 @@ int crossld_start(const char *filename, const struct function *funcs, int nfuncs
     void* switcher = generate_switch();
 
     __asm__ volatile(
-            "mov %%rbx, %0;\n"
-            "mov %%rbp, %1;\n"
-            "mov %%r12, %2;\n"
-            "mov %%r13, %3;\n"
-            "mov %%r14, %4;\n"
-            "mov %%r15, %5;\n"
-            "mov %%rsp, %6;\n"
-            "movq %9, %%rsp;\n"
-            "subq $8, %%rsp;\n"
-            "movl $0x23, 4(%%rsp);\n"
-            "mov %10, %%rax;\n"
-            "movl %%eax, (%%rsp);\n"
-            "mov %11, %%rcx;\n"
-            "lea 8(%%rip), %%rax;\n" // lea go get next instruction after lret
-            "mov %%rax, %7;\n"
-            "lret;\n"
-            "mov %0, %%rbx;\n"
-            "mov %2, %%r12;\n"
-            "mov %3, %%r13;\n"
-            "mov %4, %%r14;\n"
-            "mov %5, %%r15;\n"
-            "mov %6, %%rsp;\n"
-            "mov %%rax, %8;\n"
-        : "=m" (rbx), "=m" (rbp), "=m" (r12), "=m" (r13),
-                "=m" (r14), "=m" (r15), "=m" (rsp), "=m" (return_addr), "=m" (res)
+            "movq %%rbp, %2\n"
+            "movq %3, %%rsp\n"
+            "subq $8, %%rsp\n"
+            "movl $0x23, 4(%%rsp)\n"
+            "mov %4, %%rax\n"
+            "movl %%eax, (%%rsp)\n"
+            "mov %5, %%rcx\n"
+            "lea 8(%%rip), %%rax\n" // instr after lret
+            "mov %%rax, %0\n"
+            "lret\n"
+            "movq %%rax, %1\n"
+            "movq %2, %%rbp\n"
+            "lea -0x28(%%rbp), %%rsp\n"
+//            "movq (%%rbp), %%rsp\n"
+            "pop %%rbx\n"
+            "pop %%r12\n"
+            "pop %%r13\n"
+            "pop %%r14\n"
+            "pop %%r15\n"
+            "pop %%rbp\n"
+            "retq\n"
+        : "=m" (return_addr), "=m" (res), "=m" (rbp)
         : "g" (stack), "g" (switcher), "g" (entry)
         : "cc", "memory", "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
                 "rsp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"

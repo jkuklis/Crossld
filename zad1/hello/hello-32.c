@@ -10,7 +10,6 @@ void print(char *str);
 
 void hello()
 {
-//    print("Lol");
-    print("Hello world");
+//    print("Hello world");
     exit(3);
 }
