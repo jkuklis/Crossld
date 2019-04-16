@@ -8,6 +8,11 @@
 #include "asm.h"
 
 
+struct Elf_file {
+
+};
+
+
 int is_image_invalid(Elf32_Ehdr *hdr) {
     assert_msg(memcmp(hdr->e_ident, ELFMAG, SELFMAG) == 0, "Incorrect ELF: magic number");
     assert_msg(hdr->e_type == ET_EXEC, "Incorrect ELF: not exec file type");
@@ -240,6 +245,29 @@ void* create_trampoline(void* invoker_function) {
 }
 
 
+void* make_invoker(const char* sym, const struct function* funcs, int nfuncs, void* exit_fun) {
+    void *invoker;
+
+    if (strcmp(sym, "exit") == 0) {
+        enum type exit_types[] = {TYPE_INT};
+        struct function exit_struct = {"exit", exit_types, 1, TYPE_VOID, exit_fun};
+        invoker = create_invoker(&exit_struct);
+
+    } else {
+        for (int i = 0; i < nfuncs; i++) {
+            if (strcmp(sym, funcs[i].name) == 0) {
+                invoker = create_invoker(funcs + i);
+                break;
+            }
+        }
+    }
+
+    assert_msg(invoker != 0, "Symbol not defined!");
+
+    return invoker;
+}
+
+
 void relocate(Elf32_Shdr* shdr, const Elf32_Sym* syms, const char* strings, const char* src,
               const struct function* funcs, int nfuncs, void* exit_fun)
 {
@@ -252,23 +280,7 @@ void relocate(Elf32_Shdr* shdr, const Elf32_Sym* syms, const char* strings, cons
         switch(ELF32_R_TYPE(rel[j].r_info)) {
             case R_386_JMP_SLOT:
             case R_386_GLOB_DAT:
-                invoker = 0;
-
-                if (strcmp(sym, "exit") == 0) {
-                    enum type exit_types[] = {TYPE_INT};
-                    struct function exit_struct = {"exit", exit_types, 1, TYPE_VOID, exit_fun};
-                    invoker = create_invoker(&exit_struct);
-
-                } else {
-                    for (int i = 0; i < nfuncs; i++) {
-                        if (strcmp(sym, funcs[i].name) == 0) {
-                            invoker = create_invoker(funcs + i);
-                            break;
-                        }
-                    }
-                }
-                assert_msg(invoker != 0, "Symbol not defined!");
-
+                invoker = make_invoker(sym, funcs, nfuncs, exit_fun);
                 trampoline = create_trampoline(invoker);
                 *(Elf32_Word *)(long long)rel[j].r_offset = (Elf32_Word) (long) trampoline;
         }
@@ -347,14 +359,12 @@ void *image_load (char *elf_start, const struct function *funcs, int nfuncs, voi
         }
 
         if (!(phdr[i].p_flags & PF_W)) {
-            // Read-only.
             mprotect((unsigned char *) taddr,
                      phdr[i].p_memsz,
                      PROT_READ);
         }
 
         if (phdr[i].p_flags & PF_X) {
-            // Executable.
             mprotect((unsigned char *) taddr,
                      phdr[i].p_memsz,
                      PROT_EXEC);
@@ -369,4 +379,4 @@ void *image_load (char *elf_start, const struct function *funcs, int nfuncs, voi
 
     return (void*)((long long)hdr->e_entry);
 
-} /* image_load */
+}
