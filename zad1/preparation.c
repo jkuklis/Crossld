@@ -80,3 +80,11 @@ void* program_entry(const char *filename, const struct function *funcs, int nfun
 
     return entry;
 }
+
+void* program_cleanup(const char *filename) {
+    static char buf[4 * 1024 * 1024];
+    FILE* elf = fopen(filename, "rb");
+    fread(buf, sizeof buf, 1, elf);
+
+    unload_program(buf);
+}

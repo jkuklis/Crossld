@@ -13,4 +13,6 @@ void delete_stack(void *stack);
 
 void* program_entry(const char *filename, const struct function *funcs, int nfuncs, void* exit_fun);
 
+void* program_cleanup(const char *filename);
+
 #endif //CROSSLD_PREPARATION_H

@@ -157,7 +157,7 @@ int load_program(char *elf_start, struct Elf* elf) {
             return 0;
         }
 
-        if (!p.p_filesz) {
+        if (!p.p_memsz) {
             continue;
         }
 
@@ -168,16 +168,38 @@ int load_program(char *elf_start, struct Elf* elf) {
 
         int ext_length = p.p_memsz + (taddr - aligned);
 
-        printf("%p\n", aligned);
-
         mapped = mmap(aligned, ext_length, PROT_READ | PROT_WRITE,
-             MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+                      MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
 
         assert_msg(mapped == aligned, "Failed to load program!");
 
         memset(aligned, 0x0, ext_length);
 //        memset(taddr, 0x0, p.p_memsz);
         memmove(taddr, start, p.p_filesz);
+    }
+}
+
+void unload_program(char* elf_start) {
+    Elf32_Ehdr* hdr = (Elf32_Ehdr *) elf_start;
+    Elf32_Phdr* phdr = (Elf32_Phdr *)(elf_start + hdr->e_phoff);
+
+    for(int i = 0; i < hdr->e_phnum; ++i) {
+
+        Elf32_Phdr p = phdr[i];
+
+        if (p.p_type != PT_LOAD) {
+            continue;
+        }
+
+        if (!p.p_memsz) {
+            continue;
+        }
+
+        char* taddr = (void*)(long long)p.p_vaddr;
+        char* aligned = (char*)(((long long)taddr >> 12) << 12);
+        int ext_length = p.p_memsz + (taddr - aligned);
+
+        munmap(aligned, ext_length);
     }
 }
 

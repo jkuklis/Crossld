@@ -17,8 +17,8 @@ void prepare_state(const char *filename, const struct function *funcs, int nfunc
     state.starter = create_starter();
 }
 
-void clean_state() {
-    delete_stack(state.stack);
+void clean_state(const char* filename) {
+    program_cleanup(filename);
 }
 
 __attribute__ ((visibility("default")))
@@ -43,20 +43,12 @@ int crossld_start(const char *filename, const struct function *funcs, int nfuncs
     "lret\n"
     "movq %%rax, %1\n"
     "movq %2, %%rbp\n"
-    "lea -0x28(%%rbp), %%rsp\n"
-    "pop %%rbx\n"
-    "pop %%r12\n"
-    "pop %%r13\n"
-    "pop %%r14\n"
-    "pop %%r15\n"
-    "pop %%rbp\n"
-    "retq\n"
     : "=m" (state.return_addr), "=m" (res), "=m" (state.rbp)
     : "g" (state.stack), "g" (state.starter), "g" (state.entry)
     : "cc", "memory", "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
     "rsp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
     );
 
-//    clean_state();
-    return 0;
+    clean_state(filename);
+    return res;
 }
