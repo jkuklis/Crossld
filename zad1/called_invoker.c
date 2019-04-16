@@ -33,10 +33,6 @@ void* switcher_64() {
 void called_invoker(const struct function *to_invoke) {
     void *args[to_invoke->nargs];
 
-//    if (strcmp(to_invoke->name, "getrand") != 0) {
-//        printf("heyo!");
-//    }
-
     void* switcher = switcher_64();
 
     size_t stack_position = 8;
@@ -51,9 +47,11 @@ void called_invoker(const struct function *to_invoke) {
         arg_val = 0;
         switch (arg_type) {
             case TYPE_VOID:
-                printf("Void argument!\n");
-                return;
-                // TODO
+                __asm__ volatile (
+                    "movq $-1, %%rdi\n"
+                    "jmp *%0"
+                    :: "g" (state.exit_fun)
+                );
                 break;
             case TYPE_INT:
             case TYPE_LONG:
@@ -165,9 +163,11 @@ void called_invoker(const struct function *to_invoke) {
         case TYPE_UNSIGNED_LONG:
         case TYPE_PTR:
             if (returned_val > UINT32_MAX) {
-                // TODO
-                // put address of exit into global state?
-                abort();
+                __asm__ volatile (
+                "movq $-1, %%rdi\n"
+                "jmp *%0"
+                :: "g" (state.exit_fun)
+                );
             } else {
                 __asm__ volatile (
                 "movq %0, %%rax\n"
