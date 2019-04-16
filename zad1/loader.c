@@ -6,10 +6,17 @@
 #include "loader.h"
 #include "common.h"
 #include "asm.h"
+#include "called_invoker.h"
 
 
-struct Elf_file {
-
+struct Elf {
+    Elf32_Ehdr  *hdr;
+    Elf32_Phdr  *phdr;
+    Elf32_Shdr  *shdr;
+    Elf32_Sym   *syms;
+    Elf32_Shdr  *relhdr;
+    Elf32_Rel   *rel;
+    char        *strings;
 };
 
 
@@ -22,178 +29,6 @@ int is_image_invalid(Elf32_Ehdr *hdr) {
     assert_msg(hdr->e_phoff != 0, "Incorrect ELF: No program header table");
     assert_msg(hdr->e_phnum != 0, "Incorrect ELF: No programs in ELF");
     return get_status();
-}
-
-
-void called_invoker(const struct function *to_invoke) {
-//    void *args[to_invoke->nargs];
-//
-//    void* switcher = switcher_64();
-//
-//    size_t stack_position = 8;
-//    size_t args_offset = 8;
-//
-//    void* arg_val = 0;
-//
-//    void* returned;
-//
-//    for (int i = 0; i < to_invoke->nargs; i++) {
-//        enum type arg_type = to_invoke->args[i];
-//        arg_val = 0;
-//        switch (arg_type) {
-//            case TYPE_VOID:
-//                printf("Void argument!\n");
-//                return;
-//                // TODO
-//                break;
-//            case TYPE_INT:
-//            case TYPE_LONG:
-//            case TYPE_UNSIGNED_INT:
-//            case TYPE_UNSIGNED_LONG:
-//            case TYPE_PTR:
-//                stack_position += 4;
-//                __asm__ volatile (
-//                "movq %1, %%rax\n"
-//                "lea (%%rbp, %%rax, 1), %%rax\n"
-//                "movl (%%rax), %%eax\n"
-//                "movl %%eax, %0\n"
-//                : "=m" (arg_val)
-//                : "g" (stack_position)
-//                );
-//                break;
-//            case TYPE_LONG_LONG:
-//            case TYPE_UNSIGNED_LONG_LONG:
-//                stack_position += 4;
-//                __asm__ volatile (
-//                "movq %1, %%rax\n"
-//                "lea (%%rbp, %%rax, 1), %%rax\n"
-//                "movq (%%rax), %%rax\n"
-//                "movq %%rax, %0\n"
-//                : "=m" (arg_val)
-//                : "g" (stack_position)
-//                );
-//                stack_position += 4;
-//                break;
-//        }
-//
-//        args[i] = arg_val;
-//    }
-//
-////    printf("%s\n", to_invoke->name);
-//
-//    for (int i = to_invoke->nargs; i > 5; i--) {
-//        long long val = (long long)args[i];
-//        __asm__ volatile (
-//        "pushq %0\n"
-//        :: "g" (val)
-//        );
-//    }
-//
-//    for (int i = 0; i < to_invoke->nargs && i < 6; i++) {
-//        long long val = (long long)args[i];
-//
-//        switch(i) {
-//            case 0:
-//                __asm__ volatile (
-//                "movq %0, %%rdi"
-//                :: "g" (val)
-//                );
-//                break;
-//            case 1:
-//                __asm__ volatile (
-//                "movq %0, %%rsi"
-//                :: "g" (val)
-//                );
-//                break;
-//            case 2:
-//                __asm__ volatile (
-//                "movq %0, %%rdx"
-//                :: "g" (val)
-//                );
-//                break;
-//            case 3:
-//                __asm__ volatile (
-//                "movq %0, %%rcx"
-//                :: "g" (val)
-//                );
-//                break;
-//            case 4:
-//                __asm__ volatile (
-//                "movq %0, %%r8"
-//                :: "g" (val)
-//                );
-//                break;
-//            case 5:
-//                __asm__ volatile (
-//                "movq %0, %%r9"
-//                :: "g" (val)
-//                );
-//                break;
-//        }
-//    }
-//
-//    if (to_invoke->nargs >= 3) {
-//        long long val = (long long)args[2];
-//        __asm__ volatile (
-//        "movq %0, %%rdx"
-//        :: "g" (val)
-//        );
-//    }
-//
-//    __asm__ volatile (
-//    "call *%1\n"
-//    "movq %%rax, %0"
-//    : "=m" (returned)
-//    : "g" (to_invoke->code)
-//    );
-//
-//    unsigned long long returned_val = (unsigned long long)returned;
-//
-//    switch(to_invoke->result) {
-//        case TYPE_INT:
-//        case TYPE_LONG:
-//        case TYPE_UNSIGNED_INT:
-//        case TYPE_UNSIGNED_LONG:
-//        case TYPE_PTR:
-//            if (returned_val > UINT32_MAX) {
-//                // TODO
-//                // put address of exit into global state?
-//                abort();
-//            } else {
-//                __asm__ volatile (
-//                "movq %0, %%rax\n"
-//                :: "g" (returned)
-//                );
-//            }
-//            break;
-//
-//        case TYPE_LONG_LONG:
-//        case TYPE_UNSIGNED_LONG_LONG:
-//            __asm__ volatile (
-//            "movq %0, %%rcx\n"
-//            "movl %%ecx, %%eax\n"
-//            "sar $32, %%rcx\n"
-//            "movl %%ecx, %%edx\n"
-//            :: "g" (returned)
-//            );
-//            break;
-//
-//        default:
-//            break;
-//
-//    }
-//
-//    __asm__ volatile (
-//    "movq %%r12, %%rdi\n"
-//    "movq %%r13, %%rsi\n"
-//    "movl $0x23, 4(%%rsp);\n"
-//    "movq %0, %%rcx;\n"
-//    "movl %%ecx, (%%rsp);\n"
-//    "lret\n"
-//    :
-//    : "g" (switcher)
-//    );
-
 }
 
 
@@ -249,9 +84,9 @@ void* make_invoker(const char* sym, const struct function* funcs, int nfuncs, vo
     void *invoker;
 
     if (strcmp(sym, "exit") == 0) {
-        enum type exit_types[] = {TYPE_INT};
-        struct function exit_struct = {"exit", exit_types, 1, TYPE_VOID, exit_fun};
-        invoker = create_invoker(&exit_struct);
+//        enum type exit_types[] = {TYPE_INT};
+//        struct function exit_struct = {"exit", state.exit_types, 1, TYPE_VOID, exit_fun};
+        invoker = create_invoker(&(state.exit_struct));
 
     } else {
         for (int i = 0; i < nfuncs; i++) {
@@ -268,115 +103,114 @@ void* make_invoker(const char* sym, const struct function* funcs, int nfuncs, vo
 }
 
 
-void relocate(Elf32_Shdr* shdr, const Elf32_Sym* syms, const char* strings, const char* src,
-              const struct function* funcs, int nfuncs, void* exit_fun)
-{
-    Elf32_Rel* rel = (Elf32_Rel*)(src + shdr->sh_offset);
+void relocate(struct Elf* elf, const struct function* funcs, int nfuncs, void* exit_fun) {
     void* invoker;
     void* trampoline;
-    for(int j = 0; j < shdr->sh_size / sizeof(Elf32_Rel); j++) {
-        const char* sym = strings + syms[ELF32_R_SYM(rel[j].r_info)].st_name;
+    for(int j = 0; j < elf->relhdr->sh_size / sizeof(Elf32_Rel); j++) {
+        const char* sym = elf->strings + elf->syms[ELF32_R_SYM(elf->rel[j].r_info)].st_name;
 
-        switch(ELF32_R_TYPE(rel[j].r_info)) {
+        switch(ELF32_R_TYPE(elf->rel[j].r_info)) {
             case R_386_JMP_SLOT:
             case R_386_GLOB_DAT:
                 invoker = make_invoker(sym, funcs, nfuncs, exit_fun);
                 trampoline = create_trampoline(invoker);
-                *(Elf32_Word *)(long long)rel[j].r_offset = (Elf32_Word) (long) trampoline;
+                *(Elf32_Word *)(long long)elf->rel[j].r_offset = (Elf32_Word) (long) trampoline;
         }
     }
 }
 
 
-void *image_load (char *elf_start, const struct function *funcs, int nfuncs, void* exit_fun) {
+int prepare_elf_struct(char *elf_start, struct Elf* elf) {
+    elf->hdr = (Elf32_Ehdr *) elf_start;
 
-    Elf32_Ehdr  *hdr        = NULL;
-    Elf32_Phdr  *phdr       = NULL;
-    Elf32_Shdr  *shdr       = NULL;
-    Elf32_Sym   *syms       = NULL;
-    char        *strings    = NULL;
-
-    char        *start      = NULL;
-    char        *taddr      = NULL;
-    int i = 0;
-    int j = 0;
-    int k = 0;
-
-    hdr = (Elf32_Ehdr *) elf_start;
-
-    if (is_image_invalid(hdr)) {
-        return 0;
+    if (is_image_invalid(elf->hdr)) {
+        return 1;
     }
 
-    phdr = (Elf32_Phdr *)(elf_start + hdr->e_phoff);
-    shdr = (Elf32_Shdr *)(elf_start + hdr->e_shoff);
+    elf->phdr = (Elf32_Phdr *)(elf_start + elf->hdr->e_phoff);
+    elf->shdr = (Elf32_Shdr *)(elf_start + elf->hdr->e_shoff);
 
-    Elf32_Rel rel_to_change;
-
-    for (i=0; i < hdr->e_shnum; ++i) {
-        if (shdr[i].sh_type == SHT_DYNSYM) {
-            syms = (Elf32_Sym*)(elf_start + shdr[i].sh_offset);
-            strings = elf_start + shdr[shdr[i].sh_link].sh_offset;
-            // can also be taken from _DYNAMIC
+    for (int i = 0; i < elf->hdr->e_shnum; ++i) {
+        if (elf->shdr[i].sh_type == SHT_DYNSYM) {
+            elf->syms = (Elf32_Sym *) (elf_start + elf->shdr[i].sh_offset);
+            elf->strings = elf_start + elf->shdr[elf->shdr[i].sh_link].sh_offset;
+            // can also be taken from _DYNAMIC}
+        }
+        if (elf->shdr[i].sh_type == SHT_REL) {
+            elf->relhdr = elf->shdr + i;
+            elf->rel = (Elf32_Rel*)(elf_start + elf->relhdr->sh_offset);
         }
     }
 
-    for (i=0; i < hdr->e_phnum; ++i) {
-        if (phdr[i].p_type != PT_LOAD) {
+    return 0;
+}
+
+int load_program(char *elf_start, struct Elf* elf) {
+    for(int i = 0; i < elf->hdr->e_phnum; ++i) {
+
+        Elf32_Phdr p = elf->phdr[i];
+
+        if (p.p_type != PT_LOAD) {
             continue;
         }
 
-        if (assert_msg(phdr[i].p_filesz <= phdr[i].p_memsz, "File size bigger than memory size!")) {
+        if (assert_msg(p.p_filesz <= p.p_memsz, "Filesz larger than memsz!")) {
             return 0;
         }
-        if (!phdr[i].p_filesz) {
+
+        if (!p.p_filesz) {
             continue;
         }
 
-        start = elf_start + phdr[i].p_offset;
-        taddr = (void*)(long long)phdr[i].p_vaddr;
-
+        char* start = elf_start + p.p_offset;
+        char* taddr = (void*)(long long)p.p_vaddr;
         char *aligned = (char*)(((long long)taddr >> 12) << 12);
 
-        int ext_length = phdr[i].p_memsz + (taddr - aligned);
+        int ext_length = p.p_memsz + (taddr - aligned);
 
         mmap(aligned, ext_length, PROT_READ | PROT_WRITE,
              MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
 
         memset(taddr, 0x0, ext_length);
-
-        memmove(taddr,start,phdr[i].p_filesz);
-
+        memmove(taddr,start,p.p_filesz);
     }
+}
 
+void protect_memory(struct Elf* elf) {
+    for (int i = 0; i < elf->hdr->e_phnum; ++i) {
 
-    for(i=0; i < hdr->e_phnum; ++i) {
+        Elf32_Phdr p = elf->phdr[i];
+        char* taddr = (void*)(long long)p.p_vaddr;
 
-        taddr = (void*)(long long)phdr[i].p_vaddr;
-
-        if(phdr[i].p_type != PT_LOAD) {
+        if (p.p_type != PT_LOAD) {
             continue;
         }
 
-        if (!(phdr[i].p_flags & PF_W)) {
+        if (!(p.p_flags & PF_W)) {
             mprotect((unsigned char *) taddr,
-                     phdr[i].p_memsz,
+                     p.p_memsz,
                      PROT_READ);
         }
 
-        if (phdr[i].p_flags & PF_X) {
+        if (p.p_flags & PF_X) {
             mprotect((unsigned char *) taddr,
-                     phdr[i].p_memsz,
+                     p.p_memsz,
                      PROT_EXEC);
         }
     }
+}
 
-    for(i=0; i < hdr->e_shnum; ++i) {
-        if (shdr[i].sh_type == SHT_REL) {
-            relocate(shdr + i, syms, strings, elf_start, funcs, nfuncs, exit_fun);
-        }
+void *image_load (char *elf_start, const struct function *funcs, int nfuncs, void* exit_fun) {
+    struct Elf elf;
+
+    if (prepare_elf_struct(elf_start, &elf)) {
+        return 0;
     }
 
-    return (void*)((long long)hdr->e_entry);
+    load_program(elf_start, &elf);
+    protect_memory(&elf);
 
+    relocate(&elf, funcs, nfuncs, exit_fun);
+
+    return (void *) ((long long) elf.hdr->e_entry);
 }

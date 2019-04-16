@@ -49,5 +49,39 @@ __asm__ (
     "trampoline_end:\n"
 );
 
+extern char starter_begin;
+extern char starter_end;
+
+__asm__ (
+
+    "starter_begin:\n"
+        ".code32\n"
+        "pushl $0x2b\n"
+        "popl %ds\n"
+        "pushl $0x2b\n"
+        "popl %es\n"
+        "jmp *%ecx\n"
+    ".code64\n"
+    "starter_end:\n"
+);
+
+extern char switch_begin;
+extern char switch_end;
+
+__asm__ (
+
+    "switch_begin:\n"
+        ".code32\n"
+        "pushl $0x2b\n"
+        "popl %ds\n"
+        "pushl $0x2b\n"
+        "popl %es\n"
+        "movl -0x8(%ebp), %ebx\n"
+        "addl $8, %ebp\n"
+        "movl %ebp, %esp\n"
+        "ret\n"
+    ".code64\n"
+    "switch_end:\n"
+);
 
 #endif //CROSSLD_ASM_H

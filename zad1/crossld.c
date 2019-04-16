@@ -1,25 +1,20 @@
+#include <stdio.h>
+
 #include "crossld.h"
 #include "common.h"
 #include "preparation.h"
 
-struct State state;
-
-void prepare_stack() {
-    state.stack = create_stack();
-}
-
-void prepare_exit() {
-    state.exit_fun = create_exit((long long)&(state.return_addr));
-}
-
-void prepare_entry(const char *filename, const struct function *funcs, int nfuncs) {
-    state.entry = program_entry(filename, funcs, nfuncs, state.exit_fun);
-}
-
 void prepare_state(const char *filename, const struct function *funcs, int nfuncs) {
-    prepare_stack();
-    prepare_exit();
-    prepare_entry(filename, funcs, nfuncs);
+    state.stack = create_stack();
+    state.exit_fun = create_exit((long long)&(state.return_addr));
+    state.exit_types[0] = TYPE_INT;
+    state.exit_struct.nargs = 1;
+    state.exit_struct.args = state.exit_types;
+    state.exit_struct.result = TYPE_VOID;
+    state.exit_struct.code = state.exit_fun;
+    state.exit_struct.name = "exit";
+    state.entry = program_entry(filename, funcs, nfuncs, state.exit_fun);
+    state.starter = create_starter();
 }
 
 void clean_state() {
@@ -32,6 +27,35 @@ int crossld_start(const char *filename, const struct function *funcs, int nfuncs
     if (get_status()) {
         return -1;
     }
+
+    int res;
+
+    __asm__ volatile(
+    "movq %%rbp, %2\n"
+    "movq %3, %%rsp\n"
+    "subq $8, %%rsp\n"
+    "movl $0x23, 4(%%rsp)\n"
+    "mov %4, %%rax\n"
+    "movl %%eax, (%%rsp)\n"
+    "mov %5, %%rcx\n"
+    "lea 8(%%rip), %%rax\n" // instr after lret
+    "mov %%rax, %0\n"
+    "lret\n"
+    "movq %%rax, %1\n"
+    "movq %2, %%rbp\n"
+    "lea -0x28(%%rbp), %%rsp\n"
+    "pop %%rbx\n"
+    "pop %%r12\n"
+    "pop %%r13\n"
+    "pop %%r14\n"
+    "pop %%r15\n"
+    "pop %%rbp\n"
+    "retq\n"
+    : "=m" (state.return_addr), "=m" (res), "=m" (state.rbp)
+    : "g" (state.stack), "g" (state.starter), "g" (state.entry)
+    : "cc", "memory", "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+    "rsp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
+    );
 
 //    clean_state();
     return 0;

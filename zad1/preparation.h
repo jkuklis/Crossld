@@ -7,6 +7,8 @@ void* create_stack();
 
 void* create_exit(long long return_address);
 
+void* create_starter();
+
 void delete_stack(void *stack);
 
 void* program_entry(const char *filename, const struct function *funcs, int nfuncs, void* exit_fun);

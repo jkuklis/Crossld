@@ -13,7 +13,6 @@
 
 void* create_stack() {
     void* stack;
-
     stack = mmap(NULL, STACK_SIZE, PROT_READ | PROT_WRITE,
                                    MAP_ANONYMOUS | MAP_PRIVATE | MAP_32BIT, -1, 0);
 
@@ -29,7 +28,6 @@ void* create_stack() {
 
 void delete_stack(void *stack) {
     stack = (void*) (((uint64_t) stack) - STACK_SIZE + 4);
-
     munmap(stack, STACK_SIZE);
 }
 
@@ -49,10 +47,26 @@ void* create_exit(long long return_address) {
 
     memcpy(exit_fun, &exit_begin, code_len);
     memcpy(exit_fun + return_addr_offset, &return_address, 8);
-
     mprotect(exit_fun, code_len, PROT_READ | PROT_EXEC);
 
     return exit_fun;
+}
+
+
+void* create_starter() {
+    void* starter;
+
+    int code_len = &starter_end - &starter_begin;
+
+    if ((starter = mmap(NULL, code_len, PROT_READ | PROT_WRITE,
+                         MAP_ANONYMOUS | MAP_PRIVATE | MAP_32BIT, -1, 0)) == MAP_FAILED) {
+        printf("bad switch mmap\n");
+    }
+
+    memcpy(starter, &starter_begin, code_len);
+    mprotect(starter, code_len, PROT_EXEC);
+
+    return starter;
 }
 
 

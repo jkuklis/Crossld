@@ -10,9 +10,14 @@ struct State {
     void *stack;
     void *exit_fun;
     void *entry;
-    void *switch_32_to_64;
-    void *switch_64_to_32;
+    enum type exit_types[1];
+    struct function exit_struct;
+    void *starter;
 };
+
+
+struct State state;
+
 
 
 int assert_msg(int condition, char* msg);

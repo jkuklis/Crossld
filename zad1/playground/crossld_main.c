@@ -8,7 +8,7 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 
-#include "crossld.h"
+#include "../crossld.h"
 
 #define ASSERT_SAME(received, expected, msg)         \
     if (received != expected) {                      \
