@@ -33,6 +33,10 @@ void* switcher_64() {
 void called_invoker(const struct function *to_invoke) {
     void *args[to_invoke->nargs];
 
+//    if (strcmp(to_invoke->name, "getrand") != 0) {
+//        printf("heyo!");
+//    }
+
     void* switcher = switcher_64();
 
     size_t stack_position = 8;

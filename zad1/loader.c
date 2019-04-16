@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <elf.h>
@@ -81,11 +82,9 @@ void* create_trampoline(void* invoker_function) {
 
 
 void* make_invoker(const char* sym, const struct function* funcs, int nfuncs, void* exit_fun) {
-    void *invoker;
+    void *invoker = 0;
 
     if (strcmp(sym, "exit") == 0) {
-//        enum type exit_types[] = {TYPE_INT};
-//        struct function exit_struct = {"exit", state.exit_types, 1, TYPE_VOID, exit_fun};
         invoker = create_invoker(&(state.exit_struct));
 
     } else {
@@ -164,15 +163,21 @@ int load_program(char *elf_start, struct Elf* elf) {
 
         char* start = elf_start + p.p_offset;
         char* taddr = (void*)(long long)p.p_vaddr;
-        char *aligned = (char*)(((long long)taddr >> 12) << 12);
+        char* aligned = (char*)(((long long)taddr >> 12) << 12);
+        char* mapped = 0;
 
         int ext_length = p.p_memsz + (taddr - aligned);
 
-        mmap(aligned, ext_length, PROT_READ | PROT_WRITE,
+        printf("%p\n", aligned);
+
+        mapped = mmap(aligned, ext_length, PROT_READ | PROT_WRITE,
              MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
 
-        memset(taddr, 0x0, ext_length);
-        memmove(taddr,start,p.p_filesz);
+        assert_msg(mapped == aligned, "Failed to load program!");
+
+        memset(aligned, 0x0, ext_length);
+//        memset(taddr, 0x0, p.p_memsz);
+        memmove(taddr, start, p.p_filesz);
     }
 }
 
