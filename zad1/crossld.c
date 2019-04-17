@@ -5,9 +5,11 @@
 #include "preparation.h"
 #include "loader.h"
 
+void *res;
+void *rbp;
+void *rsp;
+
 void prepare_state(struct State* state, const struct function *funcs, int nfuncs, void **trampolines, void **invokers) {
-    state->rbp = 0;
-    state->res = 0;
     state->stack = create_stack();
     state->starter = create_starter();
     state->switcher = create_switcher();
@@ -42,19 +44,21 @@ int crossld_start(const char *filename, const struct function *funcs, int nfuncs
     }
 
     __asm__ volatile(
+        "movq %%rsp, %3\n"
         "movq %%rbp, %2\n"
-        "movq %3, %%rsp\n"
+        "movq %4, %%rsp\n"
         "subq $8, %%rsp\n"
         "movl $0x23, 4(%%rsp)\n"
-        "mov %4, %%rax\n"
+        "mov %5, %%rax\n"
         "movl %%eax, (%%rsp)\n"
-        "mov %5, %%rcx\n"
+        "mov %6, %%rcx\n"
         "lea 8(%%rip), %%rax\n" // instr after lret
         "mov %%rax, %0\n"
         "lret\n"
         "movq %%rax, %1\n"
         "movq %2, %%rbp\n"
-        : "=m" (state.return_addr), "=m" (state.res), "=m" (state.rbp)
+        "movq %3, %%rsp\n"
+        : "=m" (state.return_addr), "=m" (res), "=m" (rbp), "=m" (rsp)
         : "g" (state.stack), "g" (state.starter), "g" (state.entry)
         : "cc", "memory", "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "rsp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
@@ -64,5 +68,5 @@ int crossld_start(const char *filename, const struct function *funcs, int nfuncs
     program_cleanup(nfuncs, &state);
 
     reset_status();
-    return (long long)state.res;
+    return (long long)res;
 }

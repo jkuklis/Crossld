@@ -13,33 +13,25 @@
 void called_invoker(const struct function *to_invoke) {
     void *args[to_invoke->nargs];
 
-    void *switcher;
-    void *exit;
-
-    __asm__ volatile (
-        "movq %%r14, %0\n"
-        "movq %%r15, %1\n"
-        : "=m" (switcher), "=m" (exit)
-    );
+    void *switcher = 0;
+    void *exit = 0;
 
     size_t stack_position = 8;
     size_t args_offset = 8;
 
     void* arg_val = 0;
-
     void* returned;
+
+    __asm__ volatile (
+        "movq %%r10, %0\n"
+        "movq %%r11, %1\n"
+    : "=m" (switcher), "=m" (exit)
+    );
 
     for (int i = 0; i < to_invoke->nargs; i++) {
         enum type arg_type = to_invoke->args[i];
         arg_val = 0;
         switch (arg_type) {
-            case TYPE_VOID:
-                __asm__ volatile (
-                    "movq $-1, %%rdi\n"
-                    "jmp *%0"
-                    :: "g" (exit)
-                );
-                break;
             case TYPE_INT:
             case TYPE_LONG:
             case TYPE_UNSIGNED_INT:
@@ -135,8 +127,8 @@ void called_invoker(const struct function *to_invoke) {
     }
 
     __asm__ volatile (
-        "call *%1\n"
-        "movq %%rax, %0"
+            "call *%1\n"
+            "movq %%rax, %0\n"
         : "=m" (returned)
         : "g" (to_invoke->code)
     );
@@ -144,6 +136,12 @@ void called_invoker(const struct function *to_invoke) {
     unsigned long long returned_val = (unsigned long long)returned;
 
     switch(to_invoke->result) {
+        case TYPE_VOID:
+            __asm__ volatile (
+                "movq %0, %%rcx\n"
+                :: "g" (switcher)
+            );
+            break;
         case TYPE_INT:
         case TYPE_LONG:
         case TYPE_UNSIGNED_INT:
@@ -158,7 +156,8 @@ void called_invoker(const struct function *to_invoke) {
             } else {
                 __asm__ volatile (
                     "movq %0, %%rax\n"
-                    :: "g" (returned)
+                    "movq %1, %%rcx;\n"
+                    :: "g" (returned), "g" (switcher)
                 );
             }
             break;
@@ -167,26 +166,22 @@ void called_invoker(const struct function *to_invoke) {
         case TYPE_UNSIGNED_LONG_LONG:
             __asm__ volatile (
                 "movq %0, %%rcx\n"
-                "movl %%ecx, %%eax\n"
-                "sar $32, %%rcx\n"
-                "movl %%ecx, %%edx\n"
-                :: "g" (returned)
+                "movq %1, %%rdx\n"
+                "movl %%edx, %%eax\n"
+                "sar $32, %%rdx\n"
+                :: "g" (switcher), "g" (returned)
             );
             break;
-
         default:
             break;
-
     }
 
     __asm__ volatile (
-        "movq %%r12, %%rdi\n"
-        "movq %%r13, %%rsi\n"
-        "movl $0x23, 4(%%rsp);\n"
-        "movq %0, %%rcx;\n"
-        "movl %%ecx, (%%rsp);\n"
+        "movq %r12, %rdi\n"
+        "movq %r13, %rsi\n"
+        "movq %r14, %rbx\n"
+        "movl $0x23, 4(%rsp);\n"
+        "movl %ecx, (%rsp);\n"
         "lret\n"
-        :: "g" (switcher)
     );
-
 }

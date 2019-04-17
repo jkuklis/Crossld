@@ -103,6 +103,14 @@ void* program_entry(const char *filename, const struct function *funcs, int nfun
 }
 
 void* program_cleanup(int nfuncs, struct State* state) {
+    size_t switcher_len = &switch_end - &switch_begin;
+    size_t starter_len = &starter_end - &starter_begin;
+    size_t exit_len = &exit_end - &exit_begin;
+
+    munmap(state->switcher, switcher_len);
+    munmap(state->starter, starter_len);
+    munmap(state->exit_fun, exit_len);
+
     for (int i = 0; i < nfuncs; i++) {
         size_t invoker_len = &invoker_end - &invoker_begin;
         size_t trampoline_lne = &trampoline_end - &trampoline_begin;
@@ -115,4 +123,14 @@ void* program_cleanup(int nfuncs, struct State* state) {
             munmap(state->trampolines[i], trampoline_lne);
         }
     }
+
+    state->return_addr = 0;
+    state->stack = 0;
+    state->exit_fun = 0;
+    state->entry = 0;
+    state->starter = 0;
+    state->switcher = 0;
+    state->trampolines = 0;
+    state->invokers = 0;
+    state->exit_struct.code = 0;
 }

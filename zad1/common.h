@@ -4,8 +4,6 @@
 #include "crossld.h"
 
 struct State {
-    void *rbp;
-    void *res;
     void *return_addr;
     void *stack;
     void *exit_fun;
