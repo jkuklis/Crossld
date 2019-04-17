@@ -3,7 +3,6 @@
 
 #include "crossld.h"
 
-
 struct State {
     void *rbp;
     void *res;
@@ -16,10 +15,7 @@ struct State {
     void *starter;
 };
 
-
 struct State state;
-
-
 
 int assert_msg(int condition, char* msg);
 

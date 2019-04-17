@@ -71,7 +71,6 @@ void* create_starter() {
 
 
 void* program_entry(const char *filename, const struct function *funcs, int nfuncs, void* exit_fun) {
-    // TODO
     static char buf[4 * 1024 * 1024];
     FILE* elf = fopen(filename, "rb");
     fread(buf, sizeof buf, 1, elf);

@@ -23,6 +23,8 @@ static long long validate(int i1, long l1, long long ll1, unsigned int ui1,
 }
 
 int main() {
+    int a[30];
+    a[29] = 5;
     validate(I1, L1, LL1, U1, UL1, ULL1, I2, L2, LL2, U2, UL2, ULL2);
     return 0;
 }

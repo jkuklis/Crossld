@@ -60,24 +60,24 @@ void called_invoker(const struct function *to_invoke) {
             case TYPE_PTR:
                 stack_position += 4;
                 __asm__ volatile (
-                "movq %1, %%rax\n"
-                "lea (%%rbp, %%rax, 1), %%rax\n"
-                "movl (%%rax), %%eax\n"
-                "movl %%eax, %0\n"
-                : "=m" (arg_val)
-                : "g" (stack_position)
+                    "movq %1, %%rax\n"
+                    "lea (%%rbp, %%rax, 1), %%rax\n"
+                    "movl (%%rax), %%eax\n"
+                    "movl %%eax, %0\n"
+                    : "=m" (arg_val)
+                    : "g" (stack_position)
                 );
                 break;
             case TYPE_LONG_LONG:
             case TYPE_UNSIGNED_LONG_LONG:
                 stack_position += 4;
                 __asm__ volatile (
-                "movq %1, %%rax\n"
-                "lea (%%rbp, %%rax, 1), %%rax\n"
-                "movq (%%rax), %%rax\n"
-                "movq %%rax, %0\n"
-                : "=m" (arg_val)
-                : "g" (stack_position)
+                    "movq %1, %%rax\n"
+                    "lea (%%rbp, %%rax, 1), %%rax\n"
+                    "movq (%%rax), %%rax\n"
+                    "movq %%rax, %0\n"
+                    : "=m" (arg_val)
+                    : "g" (stack_position)
                 );
                 stack_position += 4;
                 break;
@@ -91,8 +91,8 @@ void called_invoker(const struct function *to_invoke) {
     for (int i = to_invoke->nargs; i > 5; i--) {
         long long val = (long long)args[i];
         __asm__ volatile (
-        "pushq %0\n"
-        :: "g" (val)
+            "pushq %0\n"
+            :: "g" (val)
         );
     }
 
@@ -102,38 +102,38 @@ void called_invoker(const struct function *to_invoke) {
         switch(i) {
             case 0:
                 __asm__ volatile (
-                "movq %0, %%rdi"
-                :: "g" (val)
+                    "movq %0, %%rdi"
+                    :: "g" (val)
                 );
                 break;
             case 1:
                 __asm__ volatile (
-                "movq %0, %%rsi"
-                :: "g" (val)
+                    "movq %0, %%rsi"
+                    :: "g" (val)
                 );
                 break;
             case 2:
                 __asm__ volatile (
-                "movq %0, %%rdx"
-                :: "g" (val)
+                    "movq %0, %%rdx"
+                    :: "g" (val)
                 );
                 break;
             case 3:
                 __asm__ volatile (
-                "movq %0, %%rcx"
-                :: "g" (val)
+                    "movq %0, %%rcx"
+                    :: "g" (val)
                 );
                 break;
             case 4:
                 __asm__ volatile (
-                "movq %0, %%r8"
-                :: "g" (val)
+                    "movq %0, %%r8"
+                    :: "g" (val)
                 );
                 break;
             case 5:
                 __asm__ volatile (
-                "movq %0, %%r9"
-                :: "g" (val)
+                    "movq %0, %%r9"
+                    :: "g" (val)
                 );
                 break;
         }
@@ -142,16 +142,16 @@ void called_invoker(const struct function *to_invoke) {
     if (to_invoke->nargs >= 3) {
         long long val = (long long)args[2];
         __asm__ volatile (
-        "movq %0, %%rdx"
-        :: "g" (val)
+            "movq %0, %%rdx"
+            :: "g" (val)
         );
     }
 
     __asm__ volatile (
-    "call *%1\n"
-    "movq %%rax, %0"
-    : "=m" (returned)
-    : "g" (to_invoke->code)
+        "call *%1\n"
+        "movq %%rax, %0"
+        : "=m" (returned)
+        : "g" (to_invoke->code)
     );
 
     unsigned long long returned_val = (unsigned long long)returned;
@@ -164,14 +164,14 @@ void called_invoker(const struct function *to_invoke) {
         case TYPE_PTR:
             if (returned_val > UINT32_MAX) {
                 __asm__ volatile (
-                "movq $-1, %%rdi\n"
-                "jmp *%0"
-                :: "g" (state.exit_fun)
+                    "movq $-1, %%rdi\n"
+                    "jmp *%0"
+                    :: "g" (state.exit_fun)
                 );
             } else {
                 __asm__ volatile (
-                "movq %0, %%rax\n"
-                :: "g" (returned)
+                    "movq %0, %%rax\n"
+                    :: "g" (returned)
                 );
             }
             break;
@@ -179,11 +179,11 @@ void called_invoker(const struct function *to_invoke) {
         case TYPE_LONG_LONG:
         case TYPE_UNSIGNED_LONG_LONG:
             __asm__ volatile (
-            "movq %0, %%rcx\n"
-            "movl %%ecx, %%eax\n"
-            "sar $32, %%rcx\n"
-            "movl %%ecx, %%edx\n"
-            :: "g" (returned)
+                "movq %0, %%rcx\n"
+                "movl %%ecx, %%eax\n"
+                "sar $32, %%rcx\n"
+                "movl %%ecx, %%edx\n"
+                :: "g" (returned)
             );
             break;
 
@@ -193,14 +193,13 @@ void called_invoker(const struct function *to_invoke) {
     }
 
     __asm__ volatile (
-    "movq %%r12, %%rdi\n"
-    "movq %%r13, %%rsi\n"
-    "movl $0x23, 4(%%rsp);\n"
-    "movq %0, %%rcx;\n"
-    "movl %%ecx, (%%rsp);\n"
-    "lret\n"
-    :
-    : "g" (switcher)
+        "movq %%r12, %%rdi\n"
+        "movq %%r13, %%rsi\n"
+        "movl $0x23, 4(%%rsp);\n"
+        "movq %0, %%rcx;\n"
+        "movl %%ecx, (%%rsp);\n"
+        "lret\n"
+        :: "g" (switcher)
     );
 
 }

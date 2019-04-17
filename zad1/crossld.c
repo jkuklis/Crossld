@@ -17,10 +17,6 @@ void prepare_state(const char *filename, const struct function *funcs, int nfunc
     state.starter = create_starter();
 }
 
-void clean_state(const char* filename) {
-    program_cleanup(filename);
-}
-
 __attribute__ ((visibility("default")))
 int crossld_start(const char *filename, const struct function *funcs, int nfuncs) {
     prepare_state(filename, funcs, nfuncs);
@@ -47,6 +43,6 @@ int crossld_start(const char *filename, const struct function *funcs, int nfuncs
         "rsp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
     );
 
-    clean_state(filename);
-    return state.res;
+    program_cleanup(filename);
+    return (long long)state.res;
 }
