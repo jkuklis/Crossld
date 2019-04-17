@@ -1,6 +1,7 @@
 #ifndef CROSSLD_ASM_H
 #define CROSSLD_ASM_H
 
+
 extern char exit_begin;
 extern char exit_argument;
 extern char exit_end;
@@ -15,6 +16,7 @@ __asm__ (
     "exit_end:\n"
 );
 
+// for the invoker of the real handler that calls a given function
 extern char invoker_end;
 extern char invoker_switcher;
 extern char invoker_exit;
@@ -27,7 +29,7 @@ __asm__ (
         "movq %rdi, %r12\n"
         "movq %rsi, %r13\n"
         "movq %rbx, %r14\n"
-        "movabs $0, %r10\n"
+        "movabs $0, %r15\n"
     "invoker_switcher:"
         "movabs $0, %r11\n"
     "invoker_exit:"
@@ -56,27 +58,27 @@ __asm__ (
     "trampoline_end:\n"
 );
 
+// start the 32-bit program
 extern char starter_begin;
 extern char starter_end;
 
 __asm__ (
-
     "starter_begin:\n"
         ".code32\n"
         "pushl $0x2b\n"
         "popl %ds\n"
         "pushl $0x2b\n"
         "popl %es\n"
-        "jmp *%ecx\n"
+        "jmp *%ecx\n"   // the address of function to invoke should already be in %ecx
     ".code64\n"
     "starter_end:\n"
 );
 
+// switch back to 32-bit mode after calling a given function
 extern char switch_begin;
 extern char switch_end;
 
 __asm__ (
-
     "switch_begin:\n"
         ".code32\n"
         "pushl $0x2b\n"

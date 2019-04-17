@@ -6,7 +6,6 @@
 struct State {
     void *return_addr;
     void *stack;
-    void *exit_fun;
     void *entry;
     enum type exit_types[1];
     struct function exit_struct;
@@ -16,10 +15,15 @@ struct State {
     void **invokers;
 };
 
+// assert that condition is true, if not, mark error
+// with current implementation - print message
+// to change that behaviour: CHECK operation instead of CHECK_VERBOSE in assert_msg implementation
 int assert_msg(int condition, char* msg);
 
+// get error status
 int get_status();
 
+// reset error status
 void reset_status();
 
 #endif //CROSSLD_COMMON_H

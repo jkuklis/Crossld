@@ -46,12 +46,6 @@ void* create_stack() {
 }
 
 
-void delete_stack(void *stack) {
-    stack = (void*) (((uint64_t) stack) - STACK_SIZE + 4);
-    munmap(stack, STACK_SIZE);
-}
-
-
 void* create_exit(long long return_address) {
     size_t code_len = &exit_end - &exit_begin;
     size_t return_addr_offset = (&exit_argument - &exit_begin) - 8;
@@ -91,17 +85,6 @@ void* create_starter() {
     return starter;
 }
 
-
-void* program_entry(const char *filename, const struct function *funcs, int nfuncs, struct State* state) {
-    static char buf[4 * 1024 * 1024];
-    FILE* elf = fopen(filename, "rb");
-    fread(buf, sizeof buf, 1, elf);
-
-    void* entry = image_load(buf, funcs, nfuncs, state);
-
-    return entry;
-}
-
 void* program_cleanup(int nfuncs, struct State* state) {
     size_t switcher_len = &switch_end - &switch_begin;
     size_t starter_len = &starter_end - &starter_begin;
@@ -109,7 +92,7 @@ void* program_cleanup(int nfuncs, struct State* state) {
 
     munmap(state->switcher, switcher_len);
     munmap(state->starter, starter_len);
-    munmap(state->exit_fun, exit_len);
+    munmap(state->exit_struct.code, exit_len);
 
     for (int i = 0; i < nfuncs; i++) {
         size_t invoker_len = &invoker_end - &invoker_begin;
@@ -126,7 +109,7 @@ void* program_cleanup(int nfuncs, struct State* state) {
 
     state->return_addr = 0;
     state->stack = 0;
-    state->exit_fun = 0;
+    state->exit_struct.code = 0;
     state->entry = 0;
     state->starter = 0;
     state->switcher = 0;

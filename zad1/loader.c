@@ -11,13 +11,13 @@
 
 
 struct Elf {
-    Elf32_Ehdr  *hdr;
-    Elf32_Phdr  *phdr;
-    Elf32_Shdr  *shdr;
-    Elf32_Sym   *syms;
-    Elf32_Shdr  *relhdr;
-    Elf32_Rel   *rel;
-    char        *strings;
+    Elf32_Ehdr  *hdr;       // elf header
+    Elf32_Phdr  *phdr;      // program headers
+    Elf32_Shdr  *shdr;      // sections headers
+    Elf32_Sym   *syms;      // symbols
+    Elf32_Shdr  *relhdr;    // relocation header
+    Elf32_Rel   *rel;       // relocation table
+    char        *strings;   // strings table
 };
 
 
@@ -53,7 +53,7 @@ void* create_invoker(const struct function* to_invoke, struct State* state) {
 
     memcpy(invoker, &invoker_begin, code_len);
     memcpy(invoker + switcher_offset, &(state->switcher), 8);
-    memcpy(invoker + exit_offset, &(state->exit_fun), 8);
+    memcpy(invoker + exit_offset, &(state->exit_struct.code), 8);
     memcpy(invoker + struct_offset, &to_invoke, 8);
     memcpy(invoker + handler_offset, &address, 8);
 
@@ -88,6 +88,7 @@ void* create_trampoline(void* invoker_function, struct State* state) {
 void* make_invoker(const char* sym, const struct function* funcs, int nfuncs, struct State* state) {
     void *invoker = 0;
 
+    // our library provides a special function exit that can be used to quit the 32-bit program
     if (strcmp(sym, "exit") == 0) {
         invoker = create_invoker(&(state->exit_struct), state);
 
@@ -110,6 +111,8 @@ void relocate(struct Elf* elf, const struct function* funcs, int nfuncs, struct 
     void* invoker;
     void* trampoline;
     for(int j = 0; j < elf->relhdr->sh_size / sizeof(Elf32_Rel); j++) {
+
+        // symbol to have the relocation address changed
         const char* sym = elf->strings + elf->syms[ELF32_R_SYM(elf->rel[j].r_info)].st_name;
 
         switch(ELF32_R_TYPE(elf->rel[j].r_info)) {
@@ -139,7 +142,6 @@ int prepare_elf_struct(char *elf_start, struct Elf* elf) {
         if (elf->shdr[i].sh_type == SHT_DYNSYM) {
             elf->syms = (Elf32_Sym *) (elf_start + elf->shdr[i].sh_offset);
             elf->strings = elf_start + elf->shdr[elf->shdr[i].sh_link].sh_offset;
-            // can also be taken from _DYNAMIC}
         }
         if (elf->shdr[i].sh_type == SHT_REL) {
             elf->relhdr = elf->shdr + i;
@@ -168,11 +170,13 @@ int load_program(char *elf_start, struct Elf* elf) {
         }
 
         char* start = elf_start + p.p_offset;
-        char* taddr = (void*)(long long)p.p_vaddr;
-        char* aligned = (char*)(((long long)taddr >> 12) << 12);
+        char* vaddr = (void*)(long long)p.p_vaddr;
+
+        // mmap must have the address aligned to the page size (4KB)
+        char* aligned = (char*)(((long long)vaddr >> 12) << 12);
         char* mapped = 0;
 
-        int ext_length = p.p_memsz + (taddr - aligned);
+        int ext_length = p.p_memsz + (vaddr - aligned);
 
         mapped = mmap(aligned, ext_length, PROT_READ | PROT_WRITE,
                       MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
@@ -180,8 +184,7 @@ int load_program(char *elf_start, struct Elf* elf) {
         assert_msg(mapped == aligned, "Failed to load program!");
 
         memset(aligned, 0x0, ext_length);
-//        memset(taddr, 0x0, p.p_memsz);
-        memmove(taddr, start, p.p_filesz);
+        memmove(vaddr, start, p.p_filesz);
     }
 }
 
@@ -201,9 +204,9 @@ void unload_program(char* elf_start) {
             continue;
         }
 
-        char* taddr = (void*)(long long)p.p_vaddr;
-        char* aligned = (char*)(((long long)taddr >> 12) << 12);
-        int ext_length = p.p_memsz + (taddr - aligned);
+        char* vaddr = (void*)(long long)p.p_vaddr;
+        char* aligned = (char*)(((long long)vaddr >> 12) << 12);
+        int ext_length = p.p_memsz + (vaddr - aligned);
 
         munmap(aligned, ext_length);
     }
@@ -213,20 +216,20 @@ void protect_memory(struct Elf* elf) {
     for (int i = 0; i < elf->hdr->e_phnum; ++i) {
 
         Elf32_Phdr p = elf->phdr[i];
-        char* taddr = (void*)(long long)p.p_vaddr;
+        char* vaddr = (void*)(long long)p.p_vaddr;
 
         if (p.p_type != PT_LOAD) {
             continue;
         }
 
         if (!(p.p_flags & PF_W)) {
-            mprotect((unsigned char *) taddr,
+            mprotect((unsigned char *) vaddr,
                      p.p_memsz,
                      PROT_READ);
         }
 
         if (p.p_flags & PF_X) {
-            mprotect((unsigned char *) taddr,
+            mprotect((unsigned char *) vaddr,
                      p.p_memsz,
                      PROT_EXEC);
         }
