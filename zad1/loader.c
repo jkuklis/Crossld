@@ -33,8 +33,10 @@ int is_image_invalid(Elf32_Ehdr *hdr) {
 }
 
 
-void* create_invoker(const struct function* to_invoke) {
+void* create_invoker(const struct function* to_invoke, struct State* state) {
     size_t code_len = &invoker_end - &invoker_begin;
+    size_t switcher_offset = &invoker_switcher - &invoker_begin - 8;
+    size_t exit_offset = &invoker_exit - &invoker_begin - 8;
     size_t struct_offset = (&invoker_struct - &invoker_begin) - 8;
     size_t handler_offset = (&invoker_handler - &invoker_begin) - 8;
 
@@ -50,6 +52,8 @@ void* create_invoker(const struct function* to_invoke) {
     long long address = (long long)&called_invoker;
 
     memcpy(invoker, &invoker_begin, code_len);
+    memcpy(invoker + switcher_offset, &(state->switcher), 8);
+    memcpy(invoker + exit_offset, &(state->exit_fun), 8);
     memcpy(invoker + struct_offset, &to_invoke, 8);
     memcpy(invoker + handler_offset, &address, 8);
 
@@ -59,7 +63,7 @@ void* create_invoker(const struct function* to_invoke) {
 }
 
 
-void* create_trampoline(void* invoker_function) {
+void* create_trampoline(void* invoker_function, struct State* state) {
     size_t code_len = &trampoline_end - &trampoline_begin;
     size_t fun_ptr_offset = (&trampoline_fun_ptr - &trampoline_begin) - 4;
 
@@ -81,16 +85,16 @@ void* create_trampoline(void* invoker_function) {
 }
 
 
-void* make_invoker(const char* sym, const struct function* funcs, int nfuncs, void* exit_fun) {
+void* make_invoker(const char* sym, const struct function* funcs, int nfuncs, struct State* state) {
     void *invoker = 0;
 
     if (strcmp(sym, "exit") == 0) {
-        invoker = create_invoker(&(state.exit_struct));
+        invoker = create_invoker(&(state->exit_struct), state);
 
     } else {
         for (int i = 0; i < nfuncs; i++) {
             if (strcmp(sym, funcs[i].name) == 0) {
-                invoker = create_invoker(funcs + i);
+                invoker = create_invoker(funcs + i, state);
                 break;
             }
         }
@@ -102,7 +106,7 @@ void* make_invoker(const char* sym, const struct function* funcs, int nfuncs, vo
 }
 
 
-void relocate(struct Elf* elf, const struct function* funcs, int nfuncs, void* exit_fun) {
+void relocate(struct Elf* elf, const struct function* funcs, int nfuncs, struct State* state) {
     void* invoker;
     void* trampoline;
     for(int j = 0; j < elf->relhdr->sh_size / sizeof(Elf32_Rel); j++) {
@@ -111,9 +115,11 @@ void relocate(struct Elf* elf, const struct function* funcs, int nfuncs, void* e
         switch(ELF32_R_TYPE(elf->rel[j].r_info)) {
             case R_386_JMP_SLOT:
             case R_386_GLOB_DAT:
-                invoker = make_invoker(sym, funcs, nfuncs, exit_fun);
-                trampoline = create_trampoline(invoker);
+                invoker = make_invoker(sym, funcs, nfuncs, state);
+                trampoline = create_trampoline(invoker, state);
                 *(Elf32_Word *)(long long)elf->rel[j].r_offset = (Elf32_Word) (long) trampoline;
+                state->trampolines[j] = trampoline;
+                state->invokers[j] = invoker;
         }
     }
 }
@@ -227,7 +233,7 @@ void protect_memory(struct Elf* elf) {
     }
 }
 
-void *image_load (char *elf_start, const struct function *funcs, int nfuncs, void* exit_fun) {
+void *image_load (char *elf_start, const struct function *funcs, int nfuncs, struct State* state) {
     struct Elf elf;
 
     if (prepare_elf_struct(elf_start, &elf)) {
@@ -237,7 +243,7 @@ void *image_load (char *elf_start, const struct function *funcs, int nfuncs, voi
     load_program(elf_start, &elf);
     protect_memory(&elf);
 
-    relocate(&elf, funcs, nfuncs, exit_fun);
+    relocate(&elf, funcs, nfuncs, state);
 
     return (void *) ((long long) elf.hdr->e_entry);
 }

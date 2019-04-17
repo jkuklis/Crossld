@@ -10,30 +10,17 @@
 #include "asm.h"
 
 
-void* switcher_64() {
-    void* returner;
-
-    int len_switch = &switch_end - &switch_begin;
-    int len_ret = 0;
-    int code_len = len_switch + len_ret;
-
-    if ((returner = mmap(NULL, code_len, PROT_READ | PROT_WRITE,
-                         MAP_ANONYMOUS | MAP_PRIVATE | MAP_32BIT, -1, 0)) == MAP_FAILED) {
-        printf("bad switch mmap\n");
-    }
-
-    memcpy(returner, &switch_begin, len_switch);
-
-    mprotect(returner, code_len, PROT_EXEC);
-
-    return returner;
-}
-
-
 void called_invoker(const struct function *to_invoke) {
     void *args[to_invoke->nargs];
 
-    void* switcher = switcher_64();
+    void *switcher;
+    void *exit;
+
+    __asm__ volatile (
+        "movq %%r14, %0\n"
+        "movq %%r15, %1\n"
+        : "=m" (switcher), "=m" (exit)
+    );
 
     size_t stack_position = 8;
     size_t args_offset = 8;
@@ -50,7 +37,7 @@ void called_invoker(const struct function *to_invoke) {
                 __asm__ volatile (
                     "movq $-1, %%rdi\n"
                     "jmp *%0"
-                    :: "g" (state.exit_fun)
+                    :: "g" (exit)
                 );
                 break;
             case TYPE_INT:
@@ -166,7 +153,7 @@ void called_invoker(const struct function *to_invoke) {
                 __asm__ volatile (
                     "movq $-1, %%rdi\n"
                     "jmp *%0"
-                    :: "g" (state.exit_fun)
+                    :: "g" (exit)
                 );
             } else {
                 __asm__ volatile (

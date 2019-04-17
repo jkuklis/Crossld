@@ -11,6 +11,26 @@
 #define STACK_SIZE 3145728 // 3 * 1024 * 1024
 
 
+void* create_switcher() {
+    void* switcher;
+
+    int code_len = &switch_end - &switch_begin;
+
+    switcher = mmap(NULL, code_len, PROT_READ | PROT_WRITE,
+                         MAP_ANONYMOUS | MAP_PRIVATE | MAP_32BIT, -1, 0);
+
+    if (assert_msg(switcher != MAP_FAILED, "Failed to create switcher!")) {
+        return 0;
+    }
+
+    memcpy(switcher, &switch_begin, code_len);
+
+    mprotect(switcher, code_len, PROT_EXEC);
+
+    return switcher;
+}
+
+
 void* create_stack() {
     void* stack;
     stack = mmap(NULL, STACK_SIZE, PROT_READ | PROT_WRITE,
@@ -58,9 +78,11 @@ void* create_starter() {
 
     int code_len = &starter_end - &starter_begin;
 
-    if ((starter = mmap(NULL, code_len, PROT_READ | PROT_WRITE,
-                         MAP_ANONYMOUS | MAP_PRIVATE | MAP_32BIT, -1, 0)) == MAP_FAILED) {
-        printf("bad switch mmap\n");
+    starter = mmap(NULL, code_len, PROT_READ | PROT_WRITE,
+                         MAP_ANONYMOUS | MAP_PRIVATE | MAP_32BIT, -1, 0);
+
+    if (assert_msg(starter != MAP_FAILED, "Failed to create starter function!")) {
+        return 0;
     }
 
     memcpy(starter, &starter_begin, code_len);
@@ -70,20 +92,27 @@ void* create_starter() {
 }
 
 
-void* program_entry(const char *filename, const struct function *funcs, int nfuncs, void* exit_fun) {
+void* program_entry(const char *filename, const struct function *funcs, int nfuncs, struct State* state) {
     static char buf[4 * 1024 * 1024];
     FILE* elf = fopen(filename, "rb");
     fread(buf, sizeof buf, 1, elf);
 
-    void* entry = image_load(buf, funcs, nfuncs, exit_fun);
+    void* entry = image_load(buf, funcs, nfuncs, state);
 
     return entry;
 }
 
-void* program_cleanup(const char *filename) {
-    static char buf[4 * 1024 * 1024];
-    FILE* elf = fopen(filename, "rb");
-    fread(buf, sizeof buf, 1, elf);
+void* program_cleanup(int nfuncs, struct State* state) {
+    for (int i = 0; i < nfuncs; i++) {
+        size_t invoker_len = &invoker_end - &invoker_begin;
+        size_t trampoline_lne = &trampoline_end - &trampoline_begin;
 
-    unload_program(buf);
+        if (state->invokers[i]) {
+            munmap(state->invokers[i], invoker_len);
+        }
+
+        if (state->trampolines[i]) {
+            munmap(state->trampolines[i], trampoline_lne);
+        }
+    }
 }

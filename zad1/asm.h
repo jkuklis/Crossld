@@ -16,6 +16,8 @@ __asm__ (
 );
 
 extern char invoker_end;
+extern char invoker_switcher;
+extern char invoker_exit;
 extern char invoker_struct;
 extern char invoker_handler;
 extern char invoker_begin;
@@ -24,6 +26,10 @@ __asm__ (
     "invoker_begin:\n"
         "movq %rdi, %r12\n"
         "movq %rsi, %r13\n"
+        "movabs $0, %r14\n"
+    "invoker_switcher:"
+        "movabs $0, %r15\n"
+    "invoker_exit:"
         "movabs $0, %rdi\n"
     "invoker_struct:\n"
         "movabs $0, %rax\n"

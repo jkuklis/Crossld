@@ -13,12 +13,15 @@ struct State {
     enum type exit_types[1];
     struct function exit_struct;
     void *starter;
+    void *switcher;
+    void **trampolines;
+    void **invokers;
 };
-
-struct State state;
 
 int assert_msg(int condition, char* msg);
 
 int get_status();
+
+void reset_status();
 
 #endif //CROSSLD_COMMON_H
